@@ -1,0 +1,367 @@
+/* ═══════════════════════════════════════════════════════════════
+   CONTENT.CSS — DoctoClic
+   Injection directe dans la page (pas de Shadow DOM).
+   Calqué pixel-perfect sur medassist-preview-modal.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Variables ──────────────────────────────────────────────── */
+#dc-root,
+:root {
+  --dc-primary: #1E88E5;
+  --dc-primary-dark: #1565C0;
+  --dc-primary-light: #90CAF9;
+  --dc-accent: #00ACC1;
+  --dc-surface: #FFFFFF;
+  --dc-surface-alt: #F4F7FB;
+  --dc-text: #1A2A3A;
+  --dc-text-secondary: #4A6080;
+  --dc-border: #C8D8E8;
+  --dc-error: #E53935;
+  --dc-error-bg: #FFEBEE;
+  --dc-success: #43A047;
+  --dc-success-bg: #E8F5E9;
+  --dc-shadow-sm: 0 2px 8px rgba(21, 101, 192, 0.12);
+  --dc-shadow-md: 0 8px 32px rgba(21, 101, 192, 0.16);
+  --dc-shadow-lg: 0 16px 48px rgba(21, 101, 192, 0.20);
+  --dc-radius: 16px;
+  --dc-radius-sm: 10px;
+  --dc-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --dc-font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* ─── Overlay ────────────────────────────────────────────────── */
+#dc-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 2147483647;
+  background: rgba(13, 60, 140, 0.22);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--dc-font);
+}
+
+#dc-overlay.visible {
+  display: flex;
+}
+
+@keyframes dc-fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ─── Modal ──────────────────────────────────────────────────── */
+#dc-modal {
+  width: 560px;
+  max-width: 92vw;
+  max-height: 80vh;
+  background: var(--dc-surface);
+  border-radius: var(--dc-radius);
+  box-shadow: var(--dc-shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: dc-fadeIn 0.3s ease-out;
+  border: 1px solid var(--dc-border);
+}
+
+/* ─── Header ─────────────────────────────────────────────────── */
+.dc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, var(--dc-primary), var(--dc-primary-dark));
+  color: white;
+  user-select: none;
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.dc-header:active {
+  cursor: grabbing;
+}
+
+.dc-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.dc-header-logo {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+
+.dc-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--dc-font);
+  color: white;
+}
+
+.dc-close-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: white;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--dc-transition);
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.dc-close-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* ─── Body wrapper — transparent au layout flex ──────────────── */
+#dc-body {
+  display: contents;
+}
+
+/* ─── Textarea ───────────────────────────────────────────────── */
+#dc-textarea {
+  flex: 1;
+  width: calc(100% - 40px);
+  min-height: 250px;
+  margin: 16px 20px;
+  padding: 14px;
+  border: 1px solid var(--dc-border);
+  border-radius: var(--dc-radius-sm);
+  font-family: var(--dc-font);
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--dc-text);
+  resize: vertical;
+  outline: none;
+  transition: border var(--dc-transition), box-shadow var(--dc-transition);
+  box-sizing: border-box;
+  background: var(--dc-surface);
+}
+
+#dc-textarea:focus {
+  border-color: var(--dc-primary);
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.12);
+}
+
+#dc-textarea::placeholder {
+  color: var(--dc-text-secondary);
+  font-style: italic;
+}
+
+#dc-textarea::-webkit-scrollbar {
+  width: 5px;
+}
+
+#dc-textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#dc-textarea::-webkit-scrollbar-thumb {
+  background: var(--dc-border);
+  border-radius: 10px;
+}
+
+/* ─── Actions ────────────────────────────────────────────────── */
+.dc-actions {
+  display: flex;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--dc-border);
+  flex-shrink: 0;
+}
+
+/* ─── Buttons ────────────────────────────────────────────────── */
+.dc-btn {
+  flex: 1;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--dc-radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--dc-font);
+  transition: all var(--dc-transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.dc-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.dc-btn-primary {
+  background: linear-gradient(135deg, var(--dc-primary), var(--dc-primary-dark));
+  color: white;
+}
+
+.dc-btn-primary:hover {
+  background: linear-gradient(135deg, var(--dc-primary-light), var(--dc-primary));
+  transform: translateY(-1px);
+  box-shadow: var(--dc-shadow-sm);
+}
+
+.dc-btn-secondary {
+  background: var(--dc-surface-alt);
+  color: var(--dc-text);
+  border: 1px solid var(--dc-border);
+}
+
+.dc-btn-secondary:hover {
+  background: var(--dc-border);
+  transform: translateY(-1px);
+}
+
+.dc-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.dc-btn.dc-success {
+  background: linear-gradient(135deg, var(--dc-success), #2E7D32) !important;
+  color: white !important;
+  border-color: var(--dc-success) !important;
+}
+
+/* ─── Loading ────────────────────────────────────────────────── */
+.dc-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 24px;
+  gap: 18px;
+}
+
+.dc-spinner {
+  display: inline-block;
+  width: 38px;
+  height: 38px;
+  border: 3px solid var(--dc-border);
+  border-top-color: var(--dc-primary);
+  border-radius: 50%;
+  animation: dc-spin 0.7s linear infinite;
+}
+
+@keyframes dc-spin {
+  to { transform: rotate(360deg); }
+}
+
+.dc-loading-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--dc-text-secondary);
+  font-family: var(--dc-font);
+  animation: dc-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes dc-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1; }
+}
+
+/* ─── Error ──────────────────────────────────────────────────── */
+.dc-error {
+  text-align: center;
+  padding: 40px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.dc-error-icon {
+  font-size: 42px;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.dc-error h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--dc-text);
+  font-family: var(--dc-font);
+}
+
+.dc-error p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--dc-text-secondary);
+  line-height: 1.5;
+  max-width: 380px;
+  font-family: var(--dc-font);
+}
+
+.dc-error .dc-btn {
+  margin-top: 10px;
+  flex: 0;
+  padding: 10px 20px;
+}
+
+/* ─── Toast ──────────────────────────────────────────────────── */
+#dc-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  padding: 12px 24px;
+  border-radius: var(--dc-radius-sm);
+  font-family: var(--dc-font);
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 2147483647;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--dc-shadow-md);
+  background: var(--dc-success);
+  color: white;
+}
+
+#dc-toast.visible {
+  transform: translateX(-50%) translateY(0);
+}
+
+#dc-toast.error {
+  background: var(--dc-error);
+}
+
+/* ─── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 520px) {
+  #dc-modal {
+    max-width: 96vw;
+    max-height: 90vh;
+  }
+
+  #dc-textarea {
+    min-height: 180px;
+    margin: 12px 14px;
+  }
+
+  .dc-actions {
+    flex-direction: column;
+    padding: 12px 14px;
+  }
+}

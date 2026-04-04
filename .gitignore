@@ -1,0 +1,29 @@
+# Claude Code local config (contient des chemins personnels)
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Dependencies
+node_modules/
+
+# Environment / secrets
+.env
+.env.*
+*.key
+*.pem
+
+# Build artifacts
+dist/
+build/
+*.zip
+*.crx

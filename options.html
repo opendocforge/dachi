@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DoctoClic — Options</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary: #2563EB;
+      --primary-hover: #1D4ED8;
+      --primary-light: #DBEAFE;
+      --primary-subtle: #EFF6FF;
+      --success: #059669;
+      --success-light: #D1FAE5;
+      --warning: #D97706;
+      --warning-light: #FEF3C7;
+      --warning-bg: #FFFBEB;
+      --error: #DC2626;
+      --error-light: #FEE2E2;
+      --text: #1E293B;
+      --text-secondary: #475569;
+      --text-muted: #94A3B8;
+      --bg: #F8FAFC;
+      --bg-card: #FFFFFF;
+      --border: #E2E8F0;
+      --border-focus: #2563EB;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.04);
+      --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.08);
+      --radius: 12px;
+      --radius-sm: 8px;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 40px 20px;
+      line-height: 1.5;
+    }
+
+    .options-container {
+      width: 100%;
+      max-width: 600px;
+    }
+
+    /* Header */
+    .options-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .options-header .logo {
+      display: inline-block;
+      width: 80px;
+      height: 80px;
+      margin-bottom: 14px;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 4px 18px rgba(37, 99, 235, 0.35);
+    }
+
+    .options-header .logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .options-header h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+
+    .options-header p {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Card */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title .icon {
+      font-size: 16px;
+    }
+
+    /* Form groups */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .label-hint {
+      font-weight: 400;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    /* Inputs */
+    input[type="password"],
+    input[type="text"],
+    input[type="url"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-family: var(--font);
+      color: var(--text);
+      background: var(--bg-card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      outline: none;
+      transition: border-color 200ms, box-shadow 200ms;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+      line-height: 1.6;
+    }
+
+    select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+      cursor: pointer;
+    }
+
+    /* Password wrapper */
+    .password-wrapper {
+      position: relative;
+    }
+
+    .password-wrapper input {
+      padding-right: 48px;
+    }
+
+    .toggle-password {
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 8px;
+      font-size: 18px;
+      line-height: 1;
+      border-radius: 6px;
+      transition: color 200ms, background 200ms;
+    }
+
+    .toggle-password:hover {
+      color: var(--text);
+      background: var(--primary-subtle);
+    }
+
+    /* Badge */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    .badge-hds {
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+
+    .badge-offline {
+      background: var(--success-light);
+      color: var(--success);
+    }
+
+    .badge-warning {
+      background: var(--warning-light);
+      color: var(--warning);
+    }
+
+    /* Info boxes */
+    .info-box {
+      padding: 14px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      line-height: 1.6;
+      margin-top: 16px;
+    }
+
+    .info-box-blue {
+      background: var(--primary-subtle);
+      border: 1px solid var(--primary-light);
+      color: var(--primary-hover);
+    }
+
+    .info-box-green {
+      background: #F0FDF4;
+      border: 1px solid #BBF7D0;
+      color: #166534;
+    }
+
+    .info-box-orange {
+      background: var(--warning-bg);
+      border: 1px solid #FDE68A;
+      color: #92400E;
+    }
+
+    .info-box strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .info-box ol, .info-box ul {
+      margin: 6px 0 0 18px;
+    }
+
+    .info-box li {
+      margin-bottom: 3px;
+    }
+
+    /* Provider fields — hidden by default */
+    .provider-fields {
+      display: none;
+    }
+
+    .provider-fields.active {
+      display: block;
+    }
+
+    /* Checkbox row */
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .checkbox-row input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .checkbox-row label {
+      margin-bottom: 0;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    /* Test connection button */
+    .test-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font);
+      color: var(--primary);
+      background: var(--primary-subtle);
+      border: 1.5px solid var(--primary-light);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 200ms;
+      margin-top: 12px;
+    }
+
+    .test-btn:hover {
+      background: var(--primary-light);
+    }
+
+    .test-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .test-result {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 12px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .test-result.success { color: var(--success); }
+    .test-result.error { color: var(--error); }
+
+    /* Slider */
+    .slider-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .slider-wrapper input[type="range"] {
+      flex: 1;
+      height: 6px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: var(--border);
+      border-radius: 3px;
+      outline: none;
+      border: none;
+      padding: 0;
+    }
+
+    .slider-wrapper input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px;
+      height: 20px;
+      background: var(--primary);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+      transition: transform 150ms, box-shadow 150ms;
+    }
+
+    .slider-wrapper input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+      box-shadow: 0 3px 10px rgba(37, 99, 235, 0.4);
+    }
+
+    .slider-wrapper input[type="range"]::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      background: var(--primary);
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+    }
+
+    .slider-value {
+      min-width: 42px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--primary);
+      background: var(--primary-subtle);
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    /* Save button */
+    .save-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 14px 24px;
+      font-size: 15px;
+      font-weight: 700;
+      font-family: var(--font);
+      color: #FFFFFF;
+      background: linear-gradient(135deg, var(--primary) 0%, #3B82F6 100%);
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 200ms;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+    }
+
+    .save-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4);
+    }
+
+    .save-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 4px rgba(37, 99, 235, 0.3);
+    }
+
+    .save-btn.success {
+      background: linear-gradient(135deg, var(--success) 0%, #10B981 100%);
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--text);
+      color: #FFFFFF;
+      padding: 12px 24px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+      z-index: 1000;
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Footer */
+    .footer-info {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 16px;
+      line-height: 1.6;
+    }
+
+    .footer-info a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .footer-info a:hover {
+      text-decoration: underline;
+    }
+
+    .api-help {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    .api-help a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .api-help a:hover {
+      text-decoration: underline;
+    }
+
+    /* Hidden helper */
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="options-container">
+
+    <!-- Header -->
+    <div class="options-header">
+      <div class="logo"><img src="icons/icon128.png" alt="DoctoClic"></div>
+      <h1>DoctoClic</h1>
+      <p>Configurez votre assistant médical IA</p>
+    </div>
+
+    <!-- Section 1 : Fournisseur API -->
+    <div class="card">
+      <div class="card-title">
+        <span class="icon">🔌</span> Fournisseur API
+      </div>
+
+      <div class="form-group">
+        <label for="provider">Sélectionnez votre fournisseur</label>
+        <select id="provider">
+          <option value="azure">Azure OpenAI (HDS)</option>
+          <option value="local">Serveur local (Ollama / LM Studio)</option>
+          <option value="openai">OpenAI Direct</option>
+        </select>
+      </div>
+
+      <!-- Azure HDS fields -->
+      <div id="fields-azure" class="provider-fields active">
+        <div class="form-group">
+          <span class="badge badge-hds">🛡️ Conforme HDS</span>
+        </div>
+
+        <div class="form-group">
+          <label for="azure-api-key">
+            Clé API Azure
+            <span class="label-hint">— obligatoire</span>
+          </label>
+          <div class="password-wrapper">
+            <input type="password" id="azure-api-key" placeholder="Votre clé API Azure OpenAI" autocomplete="off" spellcheck="false">
+            <button type="button" class="toggle-password" data-target="azure-api-key" aria-label="Afficher/Masquer">👁️</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="azure-endpoint">
+            Endpoint Azure
+            <span class="label-hint">— obligatoire</span>
+          </label>
+          <input type="url" id="azure-endpoint" placeholder="https://mon-instance.openai.azure.com/" autocomplete="off" spellcheck="false">
+        </div>
+
+        <div class="form-group">
+          <label for="azure-deployment">
+            Nom du déploiement
+            <span class="label-hint">— deployment name</span>
+          </label>
+          <input type="text" id="azure-deployment" placeholder="gpt-4o" autocomplete="off" spellcheck="false">
+        </div>
+
+        <div class="info-box info-box-blue">
+          <strong>Prérequis pour la conformité HDS :</strong>
+          <ol>
+            <li>Ressource Azure OpenAI déployée en région <strong>France Central</strong></li>
+            <li>Déploiement de type <strong>Data Zone Standard (EUR)</strong> pour que les données restent dans l'EEE</li>
+            <li>Logging de surveillance des abus désactivé (<code>ContentLogging = false</code>) via le portail Azure</li>
+            <li>Clauses contractuelles HDS signées avec Microsoft</li>
+          </ol>
+          <p style="margin-top: 8px;">Consultez la documentation Microsoft HDS pour plus de détails.</p>
+        </div>
+      </div>
+
+      <!-- Local server fields -->
+      <div id="fields-local" class="provider-fields">
+        <div class="form-group">
+          <span class="badge badge-offline">🔒 100% hors-ligne</span>
+        </div>
+
+        <div class="form-group">
+          <label for="local-server-url">
+            URL du serveur
+          </label>
+          <input type="url" id="local-server-url" placeholder="http://localhost:11434/v1" value="http://localhost:11434/v1" autocomplete="off" spellcheck="false">
+        </div>
+
+        <div class="form-group">
+          <label for="local-model">
+            Nom du modèle
+          </label>
+          <input type="text" id="local-model" placeholder="llama3, mistral, mixtral, gemma2..." value="llama3" autocomplete="off" spellcheck="false">
+        </div>
+
+        <div class="checkbox-row">
+          <input type="checkbox" id="local-require-key">
+          <label for="local-require-key">Clé API requise</label>
+        </div>
+
+        <div id="local-key-group" class="form-group hidden">
+          <label for="local-api-key">Clé API</label>
+          <div class="password-wrapper">
+            <input type="password" id="local-api-key" placeholder="Clé API du serveur local" autocomplete="off" spellcheck="false">
+            <button type="button" class="toggle-password" data-target="local-api-key" aria-label="Afficher/Masquer">👁️</button>
+          </div>
+        </div>
+
+        <div>
+          <button type="button" class="test-btn" id="test-connection-btn">🔗 Tester la connexion</button>
+          <span id="test-result" class="test-result"></span>
+        </div>
+
+        <div class="info-box info-box-green">
+          <strong>Confidentialité maximale</strong>
+          Vos données ne quittent jamais votre ordinateur. Compatible avec tout serveur exposant une API au format OpenAI (Ollama, LM Studio, llama.cpp, vLLM, LocalAI, text-generation-webui...). Aucune connexion internet requise. Idéal pour la confidentialité maximale des données de santé.
+        </div>
+      </div>
+
+      <!-- OpenAI Direct fields -->
+      <div id="fields-openai" class="provider-fields">
+        <div class="form-group">
+          <span class="badge badge-warning">⚠️ Non conforme HDS</span>
+        </div>
+
+        <div class="form-group">
+          <label for="openai-api-key">
+            Clé API OpenAI
+            <span class="label-hint">— obligatoire</span>
+          </label>
+          <div class="password-wrapper">
+            <input type="password" id="openai-api-key" placeholder="sk-..." autocomplete="off" spellcheck="false">
+            <button type="button" class="toggle-password" data-target="openai-api-key" aria-label="Afficher/Masquer">👁️</button>
+          </div>
+          <p class="api-help">
+            Obtenez votre clé sur <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>
+          </p>
+        </div>
+
+        <div class="info-box info-box-orange">
+          <strong>⚠️ Attention : données hors EEE</strong>
+          Avec OpenAI Direct, vos données (texte sélectionné, réponses) transitent par les serveurs OpenAI situés aux États-Unis. Cette option <strong>n'est pas conforme</strong> à la réglementation HDS française (article L.1111-8 du Code de la santé publique). Ne l'utilisez pas avec des données de santé à caractère personnel.
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2 : Modèle et paramètres -->
+    <div class="card">
+      <div class="card-title">
+        <span class="icon">🤖</span> Modèle et paramètres
+      </div>
+
+      <div class="form-group" id="model-group">
+        <label for="model">Modèle IA <span class="label-hint">— utilisé avec OpenAI Direct</span></label>
+        <select id="model">
+          <option value="gpt-4o">GPT-4o — Performant</option>
+          <option value="gpt-4o-mini">GPT-4o Mini — Rapide &amp; économique</option>
+          <option value="gpt-4-turbo">GPT-4 Turbo — Avancé</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="temperature">
+          Température
+          <span class="label-hint">— précision des réponses</span>
+        </label>
+        <div class="slider-wrapper">
+          <span style="font-size: 12px; color: var(--text-muted);">Précis</span>
+          <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.3">
+          <span style="font-size: 12px; color: var(--text-muted);">Créatif</span>
+          <span class="slider-value" id="temp-value">0.3</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3 : Contexte médecin -->
+    <div class="card">
+      <div class="card-title">
+        <span class="icon">👨‍⚕️</span> Contexte médecin
+      </div>
+
+      <div class="form-group">
+        <label for="doctor-context">
+          Informations personnelles
+          <span class="label-hint">— injectées dans tous les prompts</span>
+        </label>
+        <textarea id="doctor-context" rows="4" placeholder="Ex : Dr. Martin, médecin généraliste à Lyon, spécialisé en gériatrie. Cabinet au 12 rue de la République, 69001 Lyon. RPPS 12345678901."></textarea>
+        <p class="api-help">
+          Ces informations seront ajoutées en contexte à chaque requête pour personnaliser les réponses
+          (courriers, certificats, signatures de secrétariat, etc.).
+        </p>
+      </div>
+    </div>
+
+    <!-- Bouton sauvegarder -->
+    <button type="button" class="save-btn" id="save-btn">
+      💾 Sauvegarder les paramètres
+    </button>
+
+    <!-- Footer -->
+    <p class="footer-info">
+      DoctoClic v1.1.0 — Les données de configuration sont synchronisées via votre compte Chrome.<br>
+      Vos clés API sont stockées localement et ne sont jamais partagées.<br>
+      Aucune donnée de santé n'est stockée par l'extension.
+    </p>
+
+  </div>
+
+  <!-- Toast notification -->
+  <div class="toast" id="toast">✅ Paramètres sauvegardés avec succès</div>
+
+  <script src="options.js"></script>
+</body>
+</html>

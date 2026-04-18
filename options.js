@@ -72,6 +72,9 @@
   // OpenAI Direct
   const openaiApiKeyInput = document.getElementById("openai-api-key");
 
+  // Anonymisation
+  const anonymizeCheckbox = document.getElementById("anonymize-enabled");
+
   // Commun
   const modelSelect = document.getElementById("model");
   const modelGroup = document.getElementById("model-group");
@@ -142,7 +145,8 @@
       apiKey: "",
       model: "gpt-4o",
       temperature: 0.3,
-      doctorContext: ""
+      doctorContext: "",
+      anonymizeEnabled: true
     },
     (items) => {
       providerSelect.value = items.provider;
@@ -157,6 +161,7 @@
       temperatureSlider.value = items.temperature;
       tempValueDisplay.textContent = items.temperature;
       doctorContextTextarea.value = items.doctorContext;
+      anonymizeCheckbox.checked = items.anonymizeEnabled;
 
       // Appliquer l'état initial
       updateProviderFields();
@@ -227,7 +232,8 @@
       // Commun
       model: modelSelect.value,
       temperature: parseFloat(temperatureSlider.value),
-      doctorContext: doctorContextTextarea.value.trim()
+      doctorContext: doctorContextTextarea.value.trim(),
+      anonymizeEnabled: anonymizeCheckbox.checked
     };
 
     chrome.storage.sync.set(settings, () => {

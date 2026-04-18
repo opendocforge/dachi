@@ -119,10 +119,31 @@
     }
 
     // Show result
-    function showResult(title, text) {
+    function showResult(title, text, anonymization) {
         titleEl.textContent = title;
 
         bodyEl.innerHTML = '';
+
+        // Bannière d'anonymisation si des éléments ont été remplacés
+        if (anonymization && anonymization.enabled && anonymization.count > 0) {
+            const banner = document.createElement('div');
+            banner.className = 'dc-anon-banner';
+            const labels = {
+                email: 'email', nir: 'NIR', tel: 'téléphone',
+                date: 'date', cp_ville: 'ville', nom: 'nom', ipp: 'IPP'
+            };
+            const parts = Object.entries(anonymization.replacements)
+                .filter(([, n]) => n > 0)
+                .map(([k, n]) => `${n} ${labels[k] || k}${n > 1 ? 's' : ''}`);
+            banner.innerHTML = `🛡️ <strong>Anonymisation automatique :</strong> ${anonymization.count} élément${anonymization.count > 1 ? 's' : ''} remplacé${anonymization.count > 1 ? 's' : ''} avant envoi (${parts.join(', ')}).`;
+            bodyEl.appendChild(banner);
+        } else if (anonymization && anonymization.enabled) {
+            const banner = document.createElement('div');
+            banner.className = 'dc-anon-banner dc-anon-ok';
+            banner.innerHTML = `🛡️ Anonymisation active — aucune donnée identifiante détectée.`;
+            bodyEl.appendChild(banner);
+        }
+
         const textarea = document.createElement('textarea');
         textarea.id = 'dc-textarea';
         textarea.placeholder = 'Le texte g\u00e9n\u00e9r\u00e9 par l\'IA appara\u00eetra ici\u2026';
@@ -301,7 +322,7 @@
         if (msg.phase === 'loading') {
             showLoading(msg.title);
         } else if (msg.phase === 'result') {
-            showResult(msg.title, msg.result);
+            showResult(msg.title, msg.result, msg.anonymization);
         } else if (msg.phase === 'error') {
             showError(msg.title, msg.error);
         }

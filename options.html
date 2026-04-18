@@ -859,6 +859,31 @@
       </div>
     </div>
 
+    <!-- Section : Anonymisation -->
+    <div class="card">
+      <div class="card-title">
+        <span class="icon">🛡️</span> Anonymisation automatique
+      </div>
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="anonymize-enabled" checked>
+        <label for="anonymize-enabled">Activer l'anonymisation automatique avant envoi</label>
+      </div>
+
+      <div class="info-box info-box-blue" style="margin-top: 12px;">
+        <strong>Données détectées et remplacées automatiquement :</strong>
+        <ul style="margin-top: 6px; padding-left: 20px;">
+          <li>Noms propres (titres civilité + noms en MAJUSCULES)</li>
+          <li>Numéros de sécurité sociale (NIR)</li>
+          <li>Numéros IPP / dossier patient</li>
+          <li>Adresses email et numéros de téléphone</li>
+          <li>Dates (naissance, examens...)</li>
+          <li>Adresses postales (rue, code postal + ville)</li>
+        </ul>
+        <p style="margin-top: 8px;"><strong>⚠️ L'anonymisation par regex n'est pas infaillible.</strong> Vérifiez toujours le texte sélectionné avant envoi. Seules des données anonymisées ou pseudonymisées doivent être traitées.</p>
+      </div>
+    </div>
+
     <!-- Section 3 : Contexte médecin -->
     <div class="card">
       <div class="card-title">

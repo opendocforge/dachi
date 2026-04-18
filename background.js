@@ -1,9 +1,13 @@
 // ============================================================================
 // background.js — Service Worker (Manifest V3)
-// Gère le menu contextuel, les appels API (Azure HDS / Scaleway HDS / Local / OpenAI Direct)
+// Gère le menu contextuel, les appels API (Scaleway HDS / Local / OpenAI Direct)
 // et la communication avec le content script.
 // La clé API ne quitte jamais le Service Worker.
+// Anonymisation automatique des données identifiantes avant envoi.
 // ============================================================================
+
+// Charger le module d'anonymisation
+importScripts("anonymizer.js");
 
 // ---------------------------------------------------------------------------
 // 1. Définition des actions du menu contextuel
@@ -101,8 +105,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       phase: "loading"
     });
 
-    // Appeler l'API via la fonction abstraite
-    const result = await callAI(menuItem.prompt, info.selectionText);
+    // Appeler l'API via la fonction abstraite (retourne le résultat + infos anonymisation)
+    const { result, anonymization } = await callAI(menuItem.prompt, info.selectionText);
 
     // Envoyer la réponse au content script
     chrome.tabs.sendMessage(tab.id, {
@@ -110,7 +114,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       title: menuItem.title,
       text: info.selectionText,
       phase: "result",
-      result: result
+      result: result,
+      anonymization: anonymization
     });
 
   } catch (error) {
@@ -173,8 +178,23 @@ async function callAI(systemPrompt, userText) {
     // Commun
     model: "gpt-4o",
     temperature: 0.3,
-    doctorContext: ""
+    doctorContext: "",
+    // Anonymisation
+    anonymizeEnabled: true
   });
+
+  // Anonymisation automatique du texte utilisateur avant envoi à l'API
+  let anonymization = { enabled: false, count: 0, replacements: {} };
+  let processedText = userText;
+  if (options.anonymizeEnabled) {
+    const result = anonymizeText(userText);
+    processedText = result.text;
+    anonymization = {
+      enabled: true,
+      count: result.count,
+      replacements: result.replacements
+    };
+  }
 
   // Injecter le contexte médecin s'il existe
   let fullSystemPrompt = systemPrompt;
@@ -184,19 +204,25 @@ async function callAI(systemPrompt, userText) {
 
   const messages = [
     { role: "system", content: fullSystemPrompt },
-    { role: "user", content: userText }
+    { role: "user", content: processedText }
   ];
 
+  let result;
   switch (options.provider) {
     case "scaleway":
-      return await callScaleway(options, messages);
+      result = await callScaleway(options, messages);
+      break;
     case "local":
-      return await callLocal(options, messages);
+      result = await callLocal(options, messages);
+      break;
     case "openai":
-      return await callOpenAIDirect(options, messages);
+      result = await callOpenAIDirect(options, messages);
+      break;
     default:
       throw new Error("NO_PROVIDER");
   }
+
+  return { result, anonymization };
 }
 
 // ---------------------------------------------------------------------------

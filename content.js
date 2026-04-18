@@ -1,5 +1,5 @@
 /**
- * content.js — DoctoClic
+ * content.js — Dachi
  * Injection directe dans la page.
  * Pas de Shadow DOM. Le CSS est injecté par background.js via insertCSS.
  */
@@ -60,7 +60,7 @@
             <div class="dc-header">
                 <div class="dc-header-left">
                     <img class="dc-header-logo" src="${chrome.runtime.getURL('icons/icon48.png')}" alt="">
-                    <h3 id="dc-title">DoctoClic</h3>
+                    <h3 id="dc-title">Dachi</h3>
                 </div>
                 <button class="dc-close-btn" id="dc-close" title="Fermer">\u00d7</button>
             </div>
@@ -308,5 +308,5 @@
         sendResponse({ received: true });
     });
 
-    console.log('[DoctoClic] UI injected.');
+    console.log('[Dachi] UI injected.');
 })();

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "DoctoClic",
+  "name": "Dachi",
   "version": "1.1.0",
-  "description": "DoctoClic — Extension de productivité médicale pour médecin généraliste. Menu contextuel intelligent avec IA pour corriger, résumer, interpréter et rédiger.",
+  "description": "Dachi — Extension de productivité médicale pour médecin généraliste. Menu contextuel intelligent avec IA pour corriger, résumer, interpréter et rédiger.",
   "permissions": [
     "contextMenus",
     "scripting",
@@ -23,7 +23,7 @@
     "open_in_tab": true
   },
   "action": {
-    "default_title": "DoctoClic — Options",
+    "default_title": "Dachi — Options",
     "default_icon": {
       "16":  "icons/icon16.png",
       "48":  "icons/icon48.png",

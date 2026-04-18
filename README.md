@@ -1,8 +1,8 @@
-# 🩺 DoctoClic — Assistant IA pour Médecins Généralistes
+# 🩺 Dachi — Assistant IA pour Médecins Généralistes
 
 Extension Chrome open-source de productivité pour médecins généralistes. Interface entièrement accessible via le menu contextuel (clic droit) : sélectionnez du texte sur n'importe quelle page web et appliquez une action IA adaptée à votre exercice quotidien.
 
-![DoctoClic Screenshot](icons/icon128.png)
+![Dachi Screenshot](icons/icon128.png)
 
 ---
 
@@ -34,16 +34,16 @@ Extension Chrome open-source de productivité pour médecins généralistes. Int
 
 1. **Téléchargez** ou clonez ce dépôt :
    ```bash
-   git clone https://github.com/votre-username/doctoclic.git
+   git clone https://github.com/votre-username/dachi.git
    ```
 
 2. **Ouvrez Chrome** et accédez à `chrome://extensions/`
 
 3. **Activez le mode développeur** (toggle en haut à droite)
 
-4. **Cliquez sur "Charger l'extension non empaquetée"** et sélectionnez le dossier `doctoclic`
+4. **Cliquez sur "Charger l'extension non empaquetée"** et sélectionnez le dossier `dachi`
 
-5. **Configurez l'extension** : cliquez sur l'icône DoctoClic dans la barre d'outils pour ouvrir les options, puis sélectionnez votre fournisseur API et renseignez vos identifiants.
+5. **Configurez l'extension** : cliquez sur l'icône Dachi dans la barre d'outils pour ouvrir les options, puis sélectionnez votre fournisseur API et renseignez vos identifiants.
 
 ## Configuration
 
@@ -71,7 +71,7 @@ Extension Chrome open-source de productivité pour médecins généralistes. Int
 
 > **Important** — Lisez attentivement cette section avant tout usage clinique.
 
-1. **Outil d'aide uniquement** — DoctoClic est un outil d'aide à la rédaction et à l'analyse. Il **ne remplace en aucun cas le jugement médical** du praticien. Toutes les réponses générées doivent être vérifiées avant utilisation.
+1. **Outil d'aide uniquement** — Dachi est un outil d'aide à la rédaction et à l'analyse. Il **ne remplace en aucun cas le jugement médical** du praticien. Toutes les réponses générées doivent être vérifiées avant utilisation.
 
 2. **Usage conforme HDS** — Pour un usage conforme à la réglementation HDS (Hébergement de Données de Santé), il est impératif d'utiliser **Azure OpenAI** avec :
    - Une ressource déployée en région **France Central**
@@ -100,7 +100,7 @@ Extension Chrome open-source de productivité pour médecins généralistes. Int
 ## Architecture
 
 ```
-doctoclic/
+dachi/
 ├── manifest.json       # Manifest V3
 ├── background.js       # Service Worker — menu contextuel + appels API
 ├── content.js          # Script injecté — modale de résultat
@@ -131,4 +131,4 @@ Ce projet est sous licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus de 
 
 ---
 
-*DoctoClic est un projet open-source indépendant. Il n'est affilié à aucun éditeur de logiciel médical, à OpenAI, ni à Microsoft.*
+*Dachi est un projet open-source indépendant. Il n'est affilié à aucun éditeur de logiciel médical, à OpenAI, ni à Microsoft.*

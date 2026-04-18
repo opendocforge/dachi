@@ -9,11 +9,6 @@
   // -------------------------------------------------------------------------
   const providerSelect = document.getElementById("provider");
 
-  // Azure
-  const azureApiKeyInput = document.getElementById("azure-api-key");
-  const azureEndpointInput = document.getElementById("azure-endpoint");
-  const azureDeploymentInput = document.getElementById("azure-deployment");
-
   // Scaleway
   const scalewayApiKeyInput = document.getElementById("scaleway-api-key");
   const scalewayModelSelect = document.getElementById("scaleway-model");
@@ -40,7 +35,6 @@
   const toast = document.getElementById("toast");
 
   // Provider field containers
-  const fieldsAzure = document.getElementById("fields-azure");
   const fieldsScaleway = document.getElementById("fields-scaleway");
   const fieldsLocal = document.getElementById("fields-local");
   const fieldsOpenai = document.getElementById("fields-openai");
@@ -51,7 +45,6 @@
   function updateProviderFields() {
     const provider = providerSelect.value;
 
-    fieldsAzure.classList.toggle("active", provider === "azure");
     fieldsScaleway.classList.toggle("active", provider === "scaleway");
     fieldsLocal.classList.toggle("active", provider === "local");
     fieldsOpenai.classList.toggle("active", provider === "openai");
@@ -92,10 +85,7 @@
   // -------------------------------------------------------------------------
   chrome.storage.sync.get(
     {
-      provider: "azure",
-      azureApiKey: "",
-      azureEndpoint: "",
-      azureDeployment: "",
+      provider: "scaleway",
       scalewayApiKey: "",
       scalewayModel: "qwen3.5-397b-a17b",
       localServerUrl: "http://localhost:11434/v1",
@@ -109,9 +99,6 @@
     },
     (items) => {
       providerSelect.value = items.provider;
-      azureApiKeyInput.value = items.azureApiKey;
-      azureEndpointInput.value = items.azureEndpoint;
-      azureDeploymentInput.value = items.azureDeployment;
       scalewayApiKeyInput.value = items.scalewayApiKey;
       scalewayModelSelect.value = items.scalewayModel;
       localServerUrlInput.value = items.localServerUrl;
@@ -180,10 +167,6 @@
   saveBtn.addEventListener("click", () => {
     const settings = {
       provider: providerSelect.value,
-      // Azure
-      azureApiKey: azureApiKeyInput.value.trim(),
-      azureEndpoint: azureEndpointInput.value.trim(),
-      azureDeployment: azureDeploymentInput.value.trim(),
       // Scaleway
       scalewayApiKey: scalewayApiKeyInput.value.trim(),
       scalewayModel: scalewayModelSelect.value,

@@ -518,60 +518,14 @@
       <div class="form-group">
         <label for="provider">Sélectionnez votre fournisseur</label>
         <select id="provider">
-          <option value="azure">Azure OpenAI (HDS)</option>
           <option value="scaleway">Scaleway AI (HDS — France)</option>
           <option value="local">Serveur local (Ollama / LM Studio)</option>
           <option value="openai">OpenAI Direct</option>
         </select>
       </div>
 
-      <!-- Azure HDS fields -->
-      <div id="fields-azure" class="provider-fields active">
-        <div class="form-group">
-          <span class="badge badge-hds">🛡️ Conforme HDS</span>
-        </div>
-
-        <div class="form-group">
-          <label for="azure-api-key">
-            Clé API Azure
-            <span class="label-hint">— obligatoire</span>
-          </label>
-          <div class="password-wrapper">
-            <input type="password" id="azure-api-key" placeholder="Votre clé API Azure OpenAI" autocomplete="off" spellcheck="false">
-            <button type="button" class="toggle-password" data-target="azure-api-key" aria-label="Afficher/Masquer">👁️</button>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="azure-endpoint">
-            Endpoint Azure
-            <span class="label-hint">— obligatoire</span>
-          </label>
-          <input type="url" id="azure-endpoint" placeholder="https://mon-instance.openai.azure.com/" autocomplete="off" spellcheck="false">
-        </div>
-
-        <div class="form-group">
-          <label for="azure-deployment">
-            Nom du déploiement
-            <span class="label-hint">— deployment name</span>
-          </label>
-          <input type="text" id="azure-deployment" placeholder="gpt-4o" autocomplete="off" spellcheck="false">
-        </div>
-
-        <div class="info-box info-box-blue">
-          <strong>Prérequis pour la conformité HDS :</strong>
-          <ol>
-            <li>Ressource Azure OpenAI déployée en région <strong>France Central</strong></li>
-            <li>Déploiement de type <strong>Data Zone Standard (EUR)</strong> pour que les données restent dans l'EEE</li>
-            <li>Logging de surveillance des abus désactivé (<code>ContentLogging = false</code>) via le portail Azure</li>
-            <li>Clauses contractuelles HDS signées avec Microsoft</li>
-          </ol>
-          <p style="margin-top: 8px;">Consultez la documentation Microsoft HDS pour plus de détails.</p>
-        </div>
-      </div>
-
       <!-- Scaleway HDS fields -->
-      <div id="fields-scaleway" class="provider-fields">
+      <div id="fields-scaleway" class="provider-fields active">
         <div class="form-group">
           <span class="badge badge-hds">🛡️ Conforme HDS</span>
         </div>

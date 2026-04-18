@@ -162,11 +162,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // ---------------------------------------------------------------------------
 async function callAI(systemPrompt, userText) {
   const options = await chrome.storage.sync.get({
-    provider: "azure",
-    // Azure HDS
-    azureApiKey: "",
-    azureEndpoint: "",
-    azureDeployment: "",
+    provider: "scaleway",
     // Scaleway HDS
     scalewayApiKey: "",
     scalewayModel: "qwen3.5-397b-a17b",
@@ -195,8 +191,6 @@ async function callAI(systemPrompt, userText) {
   ];
 
   switch (options.provider) {
-    case "azure":
-      return await callAzure(options, messages);
     case "scaleway":
       return await callScaleway(options, messages);
     case "local":
@@ -209,57 +203,7 @@ async function callAI(systemPrompt, userText) {
 }
 
 // ---------------------------------------------------------------------------
-// 7. Azure OpenAI (HDS)
-// ---------------------------------------------------------------------------
-async function callAzure(options, messages) {
-  if (!options.azureApiKey) throw new Error("NO_API_KEY_AZURE");
-  if (!options.azureEndpoint) throw new Error("NO_ENDPOINT_AZURE");
-  if (!options.azureDeployment) throw new Error("NO_DEPLOYMENT_AZURE");
-
-  // Vérifier que l'endpoint est bien un domaine Azure
-  const endpoint = options.azureEndpoint.replace(/\/+$/, "");
-  try {
-    const url = new URL(endpoint);
-    if (!url.hostname.endsWith(".openai.azure.com")) {
-      throw new Error("INVALID_AZURE_ENDPOINT");
-    }
-  } catch (e) {
-    if (e.message === "INVALID_AZURE_ENDPOINT") throw e;
-    throw new Error("INVALID_AZURE_ENDPOINT");
-  }
-
-  const apiUrl = `${endpoint}/openai/deployments/${options.azureDeployment}/chat/completions?api-version=2024-08-01-preview`;
-
-  const body = {
-    temperature: options.temperature,
-    max_tokens: 2000,
-    messages: messages
-  };
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-  try {
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "api-key": options.azureApiKey,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-    return await handleResponse(response);
-  } catch (error) {
-    clearTimeout(timeoutId);
-    throw handleFetchError(error);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// 8. Scaleway Generative APIs (HDS — France)
+// 7. Scaleway Generative APIs (HDS — France)
 // ---------------------------------------------------------------------------
 async function callScaleway(options, messages) {
   if (!options.scalewayApiKey) throw new Error("NO_API_KEY_SCALEWAY");

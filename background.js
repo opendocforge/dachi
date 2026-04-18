@@ -54,18 +54,42 @@ const MENU_ITEMS = [
 const MENU_MAP = new Map(MENU_ITEMS.map(item => [item.id, item]));
 
 // ---------------------------------------------------------------------------
-// 2. Création du menu contextuel au démarrage
+// 2. Construction dynamique du menu contextuel
 // ---------------------------------------------------------------------------
-chrome.runtime.onInstalled.addListener(() => {
-  // Menu racine
+
+/**
+ * Reconstruit le menu contextuel depuis storage + defaults.
+ * Appelé au démarrage et à chaque modification des items.
+ */
+async function buildMenus() {
+  const { menuOverrides, customMenuItems } = await chrome.storage.sync.get({
+    menuOverrides: {},
+    customMenuItems: []
+  });
+
+  await chrome.contextMenus.removeAll();
+
   chrome.contextMenus.create({
     id: "assistant_medecin_root",
     title: "🩺 Assistant Médecin",
     contexts: ["selection"]
   });
 
-  // Sous-menus
+  // Items par défaut (avec éventuels overrides)
   for (const item of MENU_ITEMS) {
+    const ov = menuOverrides[item.id] || {};
+    if (ov.enabled === false) continue; // désactivé par l'utilisateur
+    chrome.contextMenus.create({
+      id: item.id,
+      parentId: "assistant_medecin_root",
+      title: ov.title || item.title,
+      contexts: ["selection"]
+    });
+  }
+
+  // Items personnalisés
+  for (const item of (customMenuItems || [])) {
+    if (item.enabled === false) continue;
     chrome.contextMenus.create({
       id: item.id,
       parentId: "assistant_medecin_root",
@@ -73,14 +97,46 @@ chrome.runtime.onInstalled.addListener(() => {
       contexts: ["selection"]
     });
   }
+}
+
+chrome.runtime.onInstalled.addListener(() => buildMenus());
+chrome.runtime.onStartup.addListener(() => buildMenus());
+
+// Reconstruire le menu si les items changent dans storage
+chrome.storage.onChanged.addListener((changes) => {
+  if ("menuOverrides" in changes || "customMenuItems" in changes) {
+    buildMenus();
+  }
 });
 
 // ---------------------------------------------------------------------------
 // 3. Gestion du clic sur un item du menu
 // ---------------------------------------------------------------------------
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  const menuItem = MENU_MAP.get(info.menuItemId);
-  if (!menuItem || !info.selectionText) return;
+  if (!info.selectionText || info.menuItemId === "assistant_medecin_root") return;
+
+  // Résoudre le prompt depuis storage + defaults
+  const { menuOverrides, customMenuItems } = await chrome.storage.sync.get({
+    menuOverrides: {},
+    customMenuItems: []
+  });
+
+  const menuId = info.menuItemId;
+  let menuItem = null;
+
+  const defaultItem = MENU_ITEMS.find(m => m.id === menuId);
+  if (defaultItem) {
+    const ov = menuOverrides[menuId] || {};
+    menuItem = {
+      id: defaultItem.id,
+      title: ov.title || defaultItem.title,
+      prompt: ov.prompt || defaultItem.prompt
+    };
+  } else {
+    menuItem = (customMenuItems || []).find(m => m.id === menuId);
+  }
+
+  if (!menuItem) return;
 
   try {
     // Injecter le CSS puis le JS dans l'onglet actif
@@ -148,7 +204,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     testLocalConnection(message.config)
       .then(result => sendResponse(result))
       .catch(err => sendResponse({ ok: false, error: err.message }));
-    return true; // async response
+    return true;
+  }
+  if (message.action === "rebuildMenus") {
+    buildMenus().then(() => sendResponse({ ok: true }));
+    return true;
   }
 });
 

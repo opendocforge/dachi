@@ -618,6 +618,202 @@
       opacity: 0.6;
     }
 
+    /* ── Actions du menu ── */
+    .menu-item-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .menu-item-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .menu-item-toggle {
+      position: relative;
+      flex-shrink: 0;
+      width: 36px;
+      height: 20px;
+    }
+
+    .menu-item-toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      margin: 0;
+      padding: 0;
+      border: none;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 200ms;
+    }
+
+    .toggle-slider::before {
+      content: "";
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      left: 3px;
+      top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 200ms;
+    }
+
+    .menu-item-toggle input:checked + .toggle-slider {
+      background: var(--primary);
+    }
+
+    .menu-item-toggle input:checked + .toggle-slider::before {
+      transform: translateX(16px);
+    }
+
+    .menu-item-label {
+      flex: 1;
+      font-size: 14px;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .menu-item-label.disabled {
+      color: var(--text-muted);
+      text-decoration: line-through;
+    }
+
+    .menu-item-badge {
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+
+    .badge-default {
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+
+    .badge-custom {
+      background: #F0FDF4;
+      color: #15803D;
+    }
+
+    .menu-item-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .icon-btn {
+      background: none;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 5px 8px;
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--text-secondary);
+      transition: background 150ms, border-color 150ms;
+      line-height: 1;
+    }
+
+    .icon-btn:hover {
+      background: var(--bg);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .icon-btn.danger:hover {
+      border-color: var(--error);
+      color: var(--error);
+      background: var(--error-light);
+    }
+
+    .edit-panel {
+      margin-top: 0;
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height 300ms ease, margin 300ms ease;
+    }
+
+    .edit-panel.open {
+      max-height: 400px;
+      margin-top: 4px;
+    }
+
+    .edit-panel-inner {
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .edit-panel-inner label {
+      font-size: 13px;
+      margin-bottom: 3px;
+    }
+
+    .edit-panel-inner textarea {
+      min-height: 100px;
+      font-size: 13px;
+    }
+
+    .edit-panel-inner input[type="text"] {
+      font-size: 13px;
+    }
+
+    .edit-panel-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .btn-sm {
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      border: none;
+      cursor: pointer;
+      transition: background 150ms;
+    }
+
+    .btn-sm-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-sm-primary:hover { background: var(--primary-hover); }
+
+    .btn-sm-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1.5px solid var(--border);
+    }
+
+    .btn-sm-ghost:hover { background: var(--bg); }
+
+    .add-action-form {
+      border-top: 1px solid var(--border);
+      margin-top: 12px;
+      padding-top: 16px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .add-action-form.open { display: flex; }
+
     /* Legal section */
     .legal-section {
       font-size: 13px;
@@ -855,6 +1051,41 @@
           <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.3">
           <span style="font-size: 12px; color: var(--text-muted);">Créatif</span>
           <span class="slider-value" id="temp-value">0.3</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section : Actions du menu contextuel -->
+    <div class="card">
+      <div class="card-title">
+        <span class="icon">🖱️</span> Actions du menu contextuel
+      </div>
+
+      <p class="api-help" style="margin-bottom: 16px;">
+        Activez/désactivez les actions, modifiez leurs prompts, ou ajoutez vos propres actions personnalisées.
+      </p>
+
+      <!-- Liste des items (injectée par options.js) -->
+      <div id="menu-items-list"></div>
+
+      <!-- Bouton ajouter -->
+      <button type="button" class="test-btn" id="add-action-btn" style="margin-top: 14px;">
+        ➕ Ajouter une action personnalisée
+      </button>
+
+      <!-- Formulaire d'ajout -->
+      <div class="add-action-form" id="add-action-form">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="new-action-title">Titre de l'action <span class="label-hint">— ex: 📝 Mon action</span></label>
+          <input type="text" id="new-action-title" placeholder="📝 Mon action personnalisée" autocomplete="off">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="new-action-prompt">Prompt système</label>
+          <textarea id="new-action-prompt" rows="5" placeholder="Décris ici ce que l'IA doit faire avec le texte sélectionné..."></textarea>
+        </div>
+        <div class="edit-panel-actions">
+          <button type="button" class="btn-sm btn-sm-ghost" id="cancel-add-btn">Annuler</button>
+          <button type="button" class="btn-sm btn-sm-primary" id="confirm-add-btn">✅ Ajouter l'action</button>
         </div>
       </div>
     </div>

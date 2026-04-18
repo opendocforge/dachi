@@ -268,4 +268,276 @@
     }
   });
 
+  // =========================================================================
+  // 10. Gestion des actions du menu contextuel (CRUD)
+  // =========================================================================
+
+  // Items par défaut (miroir de background.js MENU_ITEMS)
+  const DEFAULT_MENU_ITEMS = [
+    { id: "corriger_reformuler", title: "✏️ Corriger & Reformuler", prompt: `Tu es un rédacteur et correcteur expert en français médical. Effectue deux tâches sur le texte suivant : 1) Corrige toutes les fautes d'orthographe et de grammaire, 2) Reformule le texte pour le rendre plus clair, fluide et professionnel. Conserve rigoureusement le sens médical et la terminologie technique. Renvoie uniquement le texte final corrigé et reformulé, sans commentaire.` },
+    { id: "repondre",           title: "💬 Répondre",             prompt: `Tu es un assistant de communication pour un médecin généraliste français. Génère une réponse professionnelle, empathique et adaptée au texte suivant. Le ton doit être courtois et médical. Renvoie uniquement la réponse.` },
+    { id: "repondre_secretariat", title: "📞 Répondre Secrétariat", prompt: `Tu es la secrétaire médicale d'un cabinet de médecine générale en France. Génère une réponse professionnelle, chaleureuse et efficace au message patient suivant. Règles : 1) Vouvoie toujours le patient, ton courtois et rassurant, 2) Pour les demandes de RDV : propose de convenir d'un créneau et demande le motif si non précisé, 3) Pour les renouvellements d'ordonnance : confirme la prise en compte et précise que l'ordonnance sera préparée par le médecin, 4) Pour les demandes de résultats ou documents : indique le délai estimé ou la marche à suivre, 5) Pour les urgences : oriente vers le 15 (SAMU) ou le 112, 6) Ne donne JAMAIS d'avis médical ni de conseil thérapeutique — redirige vers une consultation, 7) Signe avec 'Le secrétariat du Dr [NOM DU MÉDECIN]'. Renvoie uniquement la réponse prête à envoyer.` },
+    { id: "resumer",            title: "📋 Résumer",              prompt: `Tu assistes un médecin dans la synthèse rédactionnelle d'un texte. Résume le texte suivant de manière structurée en bullet points. Extrais : le motif/contexte, les éléments clés, les conclusions et les éléments à retenir. Sois concis. Le résumé est une aide rédactionnelle uniquement, le médecin reste seul responsable de l'analyse clinique.` },
+    { id: "courrier_correspondance", title: "✉️ Brouillon de courrier", prompt: `Tu es un assistant de rédaction administrative pour un médecin généraliste français. À partir du contexte suivant, rédige un BROUILLON de courrier d'adressage à un confrère. Structure : formule d'appel confraternelle, motif d'adressage, éléments de contexte, question posée, formule de politesse. Laisse des [PLACEHOLDERS] pour toutes les informations à vérifier. Termine OBLIGATOIREMENT par : '[BROUILLON GÉNÉRÉ PAR IA — À RELIRE, CORRIGER ET VALIDER PAR LE MÉDECIN AVANT ENVOI]'.` },
+    { id: "certificat_medical", title: "📜 Brouillon de certificat", prompt: `Tu es un assistant de rédaction administrative. Produis un BROUILLON de certificat médical à partir du contexte fourni, en respectant la forme habituelle. Règles strictes : 1) Ne mentionne JAMAIS de diagnostic, 2) N'utilise que des constatations objectives ('Je soussigné certifie avoir examiné ce jour...'), 3) Inclus 'Certificat établi à la demande de l'intéressé(e) et remis en main propre pour faire valoir ce que de droit', 4) Prévois les champs [NOM DU MÉDECIN], [ADRESSE CABINET], [RPPS], [NOM PATIENT], [DATE DE NAISSANCE], [DATE DU JOUR]. Termine OBLIGATOIREMENT par : '[BROUILLON GÉNÉRÉ PAR IA — NON VALIDÉ — LE MÉDECIN EST SEUL RESPONSABLE DE LA RÉDACTION FINALE, DE SA CONFORMITÉ LÉGALE ET DE SA SIGNATURE]'.` },
+    { id: "traduire_francais",  title: "🌐 Traduire en français",  prompt: `Tu es un traducteur professionnel. Traduis le texte suivant en français en conservant la terminologie technique. Renvoie uniquement la traduction.` }
+  ];
+
+  const menuList = document.getElementById("menu-items-list");
+  const addActionBtn = document.getElementById("add-action-btn");
+  const addActionForm = document.getElementById("add-action-form");
+  const cancelAddBtn = document.getElementById("cancel-add-btn");
+  const confirmAddBtn = document.getElementById("confirm-add-btn");
+  const newTitleInput = document.getElementById("new-action-title");
+  const newPromptInput = document.getElementById("new-action-prompt");
+
+  let menuOverrides = {};
+  let customMenuItems = [];
+
+  // Charger et afficher
+  function loadMenuItems() {
+    chrome.storage.sync.get({ menuOverrides: {}, customMenuItems: [] }, (items) => {
+      menuOverrides = items.menuOverrides || {};
+      customMenuItems = items.customMenuItems || [];
+      renderMenuItems();
+    });
+  }
+
+  // Sauvegarder dans storage et reconstruire le menu
+  function saveMenuState(callback) {
+    chrome.storage.sync.set({ menuOverrides, customMenuItems }, () => {
+      chrome.runtime.sendMessage({ action: "rebuildMenus" });
+      if (callback) callback();
+    });
+  }
+
+  // Rendu de la liste
+  function renderMenuItems() {
+    menuList.innerHTML = "";
+
+    // Defaults
+    for (const item of DEFAULT_MENU_ITEMS) {
+      const ov = menuOverrides[item.id] || {};
+      const enabled = ov.enabled !== false;
+      const title = ov.title || item.title;
+      const prompt = ov.prompt || item.prompt;
+      menuList.appendChild(buildRow({ id: item.id, title, prompt, enabled, isDefault: true }));
+    }
+
+    // Custom
+    for (const item of customMenuItems) {
+      menuList.appendChild(buildRow({ ...item, isDefault: false }));
+    }
+  }
+
+  // Construire une ligne item
+  function buildRow({ id, title, prompt, enabled, isDefault }) {
+    const wrapper = document.createElement("div");
+
+    const row = document.createElement("div");
+    row.className = "menu-item-row";
+
+    // Toggle
+    const toggleLabel = document.createElement("label");
+    toggleLabel.className = "menu-item-toggle";
+    const toggleInput = document.createElement("input");
+    toggleInput.type = "checkbox";
+    toggleInput.checked = enabled !== false;
+    const toggleSlider = document.createElement("span");
+    toggleSlider.className = "toggle-slider";
+    toggleLabel.appendChild(toggleInput);
+    toggleLabel.appendChild(toggleSlider);
+
+    // Label
+    const labelEl = document.createElement("span");
+    labelEl.className = "menu-item-label" + (enabled === false ? " disabled" : "");
+    labelEl.textContent = title;
+
+    // Badge
+    const badge = document.createElement("span");
+    badge.className = "menu-item-badge " + (isDefault ? "badge-default" : "badge-custom");
+    badge.textContent = isDefault ? "Défaut" : "Perso";
+
+    // Boutons
+    const actionsEl = document.createElement("div");
+    actionsEl.className = "menu-item-actions";
+
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "icon-btn";
+    editBtn.title = "Modifier";
+    editBtn.textContent = "✏️";
+
+    actionsEl.appendChild(editBtn);
+
+    if (!isDefault) {
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "icon-btn danger";
+      delBtn.title = "Supprimer";
+      delBtn.textContent = "🗑️";
+      delBtn.addEventListener("click", () => {
+        if (!confirm(`Supprimer "${title}" ?`)) return;
+        customMenuItems = customMenuItems.filter(m => m.id !== id);
+        saveMenuState(() => renderMenuItems());
+      });
+      actionsEl.appendChild(delBtn);
+    }
+
+    // Reset prompt (défaut seulement, si override)
+    if (isDefault && menuOverrides[id]?.prompt) {
+      const resetBtn = document.createElement("button");
+      resetBtn.type = "button";
+      resetBtn.className = "icon-btn";
+      resetBtn.title = "Restaurer le prompt par défaut";
+      resetBtn.textContent = "↩️";
+      resetBtn.addEventListener("click", () => {
+        if (!confirm("Restaurer le prompt original ?")) return;
+        const ov = menuOverrides[id] || {};
+        delete ov.prompt;
+        delete ov.title;
+        if (Object.keys(ov).length === 0) delete menuOverrides[id];
+        else menuOverrides[id] = ov;
+        saveMenuState(() => renderMenuItems());
+      });
+      actionsEl.appendChild(resetBtn);
+    }
+
+    row.appendChild(toggleLabel);
+    row.appendChild(labelEl);
+    row.appendChild(badge);
+    row.appendChild(actionsEl);
+
+    // Toggle handler
+    toggleInput.addEventListener("change", () => {
+      const isEnabled = toggleInput.checked;
+      labelEl.classList.toggle("disabled", !isEnabled);
+      if (isDefault) {
+        menuOverrides[id] = { ...(menuOverrides[id] || {}), enabled: isEnabled };
+      } else {
+        const idx = customMenuItems.findIndex(m => m.id === id);
+        if (idx >= 0) customMenuItems[idx].enabled = isEnabled;
+      }
+      saveMenuState();
+    });
+
+    // Panneau d'édition
+    const editPanel = document.createElement("div");
+    editPanel.className = "edit-panel";
+
+    const inner = document.createElement("div");
+    inner.className = "edit-panel-inner";
+
+    // Titre (toujours modifiable)
+    const titleLabel = document.createElement("label");
+    titleLabel.textContent = "Titre de l'action";
+    const titleInput = document.createElement("input");
+    titleInput.type = "text";
+    titleInput.value = title;
+    titleInput.placeholder = "Ex: ✏️ Mon action";
+
+    // Prompt
+    const promptLabel = document.createElement("label");
+    promptLabel.textContent = "Prompt système";
+    const promptTextarea = document.createElement("textarea");
+    promptTextarea.value = prompt;
+    promptTextarea.rows = 6;
+    promptTextarea.placeholder = "Instruction envoyée à l'IA...";
+
+    const panelActions = document.createElement("div");
+    panelActions.className = "edit-panel-actions";
+
+    const cancelBtn2 = document.createElement("button");
+    cancelBtn2.type = "button";
+    cancelBtn2.className = "btn-sm btn-sm-ghost";
+    cancelBtn2.textContent = "Annuler";
+    cancelBtn2.addEventListener("click", () => {
+      editPanel.classList.remove("open");
+      editBtn.textContent = "✏️";
+    });
+
+    const saveBtn2 = document.createElement("button");
+    saveBtn2.type = "button";
+    saveBtn2.className = "btn-sm btn-sm-primary";
+    saveBtn2.textContent = "💾 Sauvegarder";
+    saveBtn2.addEventListener("click", () => {
+      const newTitle = titleInput.value.trim();
+      const newPrompt = promptTextarea.value.trim();
+      if (!newTitle || !newPrompt) { alert("Le titre et le prompt sont obligatoires."); return; }
+
+      if (isDefault) {
+        menuOverrides[id] = { ...(menuOverrides[id] || {}), title: newTitle, prompt: newPrompt };
+      } else {
+        const idx = customMenuItems.findIndex(m => m.id === id);
+        if (idx >= 0) { customMenuItems[idx].title = newTitle; customMenuItems[idx].prompt = newPrompt; }
+      }
+      saveMenuState(() => {
+        editPanel.classList.remove("open");
+        editBtn.textContent = "✏️";
+        renderMenuItems();
+        showToast();
+      });
+    });
+
+    panelActions.appendChild(cancelBtn2);
+    panelActions.appendChild(saveBtn2);
+    inner.appendChild(titleLabel);
+    inner.appendChild(titleInput);
+    inner.appendChild(promptLabel);
+    inner.appendChild(promptTextarea);
+    inner.appendChild(panelActions);
+    editPanel.appendChild(inner);
+
+    // Toggle édition
+    editBtn.addEventListener("click", () => {
+      const isOpen = editPanel.classList.contains("open");
+      // Fermer tous les autres panneaux
+      document.querySelectorAll(".edit-panel.open").forEach(p => p.classList.remove("open"));
+      document.querySelectorAll(".icon-btn").forEach(b => { if (b.textContent === "✖️") b.textContent = "✏️"; });
+      if (!isOpen) {
+        editPanel.classList.add("open");
+        editBtn.textContent = "✖️";
+      }
+    });
+
+    wrapper.appendChild(row);
+    wrapper.appendChild(editPanel);
+    return wrapper;
+  }
+
+  // Ajouter une nouvelle action
+  addActionBtn.addEventListener("click", () => {
+    addActionForm.classList.toggle("open");
+    addActionBtn.textContent = addActionForm.classList.contains("open") ? "✖️ Annuler" : "➕ Ajouter une action personnalisée";
+  });
+
+  cancelAddBtn.addEventListener("click", () => {
+    addActionForm.classList.remove("open");
+    addActionBtn.textContent = "➕ Ajouter une action personnalisée";
+    newTitleInput.value = "";
+    newPromptInput.value = "";
+  });
+
+  confirmAddBtn.addEventListener("click", () => {
+    const title = newTitleInput.value.trim();
+    const prompt = newPromptInput.value.trim();
+    if (!title || !prompt) { alert("Le titre et le prompt sont obligatoires."); return; }
+
+    const newItem = {
+      id: "custom_" + Date.now(),
+      title,
+      prompt,
+      enabled: true
+    };
+    customMenuItems.push(newItem);
+    saveMenuState(() => {
+      renderMenuItems();
+      cancelAddBtn.click();
+      showToast();
+    });
+  });
+
+  // Initialisation
+  loadMenuItems();
+
 })();

@@ -519,6 +519,7 @@
         <label for="provider">Sélectionnez votre fournisseur</label>
         <select id="provider">
           <option value="azure">Azure OpenAI (HDS)</option>
+          <option value="scaleway">Scaleway AI (HDS — France)</option>
           <option value="local">Serveur local (Ollama / LM Studio)</option>
           <option value="openai">OpenAI Direct</option>
         </select>
@@ -566,6 +567,48 @@
             <li>Clauses contractuelles HDS signées avec Microsoft</li>
           </ol>
           <p style="margin-top: 8px;">Consultez la documentation Microsoft HDS pour plus de détails.</p>
+        </div>
+      </div>
+
+      <!-- Scaleway HDS fields -->
+      <div id="fields-scaleway" class="provider-fields">
+        <div class="form-group">
+          <span class="badge badge-hds">🛡️ Conforme HDS</span>
+        </div>
+
+        <div class="form-group">
+          <label for="scaleway-api-key">
+            Clé API Scaleway
+            <span class="label-hint">— obligatoire</span>
+          </label>
+          <div class="password-wrapper">
+            <input type="password" id="scaleway-api-key" placeholder="Votre clé API Scaleway" autocomplete="off" spellcheck="false">
+            <button type="button" class="toggle-password" data-target="scaleway-api-key" aria-label="Afficher/Masquer">👁️</button>
+          </div>
+          <p class="api-help">
+            Obtenez votre clé sur <a href="https://console.scaleway.com/iam/api-keys" target="_blank" rel="noopener">console.scaleway.com</a>
+          </p>
+        </div>
+
+        <div class="form-group">
+          <label for="scaleway-model">Modèle IA</label>
+          <select id="scaleway-model">
+            <option value="llama-3.3-70b-instruct">Llama 3.3 70B Instruct — Recommandé</option>
+            <option value="llama-3.1-8b-instruct">Llama 3.1 8B Instruct — Rapide</option>
+            <option value="mistral-nemo-instruct-2407">Mistral Nemo 12B — Polyvalent</option>
+            <option value="deepseek-r1-distill-llama-70b">DeepSeek R1 70B — Raisonnement</option>
+          </select>
+        </div>
+
+        <div class="info-box info-box-blue">
+          <strong>Pourquoi Scaleway pour le HDS ?</strong>
+          <ol>
+            <li>Infrastructure <strong>100 % française</strong> — datacenter Paris/Amsterdam</li>
+            <li>Certifié <strong>HDS (Hébergement de Données de Santé)</strong> selon l'article L.1111-8 du CSP</li>
+            <li>Données traitées et stockées dans l'<strong>Union Européenne</strong></li>
+            <li>Conformité <strong>RGPD</strong> native, pas de transfert hors EEE</li>
+          </ol>
+          <p style="margin-top: 8px;">Alternative souveraine à Azure, sans dépendance aux GAFAM.</p>
         </div>
       </div>
 

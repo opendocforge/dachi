@@ -1,6 +1,6 @@
 // ============================================================================
 // background.js — Service Worker (Manifest V3)
-// Gère le menu contextuel, les appels API (Azure HDS / Local / OpenAI Direct)
+// Gère le menu contextuel, les appels API (Azure HDS / Scaleway HDS / Local / OpenAI Direct)
 // et la communication avec le content script.
 // La clé API ne quitte jamais le Service Worker.
 // ============================================================================
@@ -167,6 +167,9 @@ async function callAI(systemPrompt, userText) {
     azureApiKey: "",
     azureEndpoint: "",
     azureDeployment: "",
+    // Scaleway HDS
+    scalewayApiKey: "",
+    scalewayModel: "llama-3.3-70b-instruct",
     // Serveur local
     localServerUrl: "http://localhost:11434/v1",
     localModel: "llama3",
@@ -194,6 +197,8 @@ async function callAI(systemPrompt, userText) {
   switch (options.provider) {
     case "azure":
       return await callAzure(options, messages);
+    case "scaleway":
+      return await callScaleway(options, messages);
     case "local":
       return await callLocal(options, messages);
     case "openai":
@@ -254,7 +259,43 @@ async function callAzure(options, messages) {
 }
 
 // ---------------------------------------------------------------------------
-// 8. Serveur local (Ollama / LM Studio / etc.)
+// 8. Scaleway Generative APIs (HDS — France)
+// ---------------------------------------------------------------------------
+async function callScaleway(options, messages) {
+  if (!options.scalewayApiKey) throw new Error("NO_API_KEY_SCALEWAY");
+  if (!options.scalewayModel) throw new Error("NO_MODEL_SCALEWAY");
+
+  const body = {
+    model: options.scalewayModel,
+    temperature: options.temperature,
+    max_tokens: 2000,
+    messages: messages
+  };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const response = await fetch("https://api.scaleway.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${options.scalewayApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+    return await handleResponse(response);
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw handleFetchError(error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 10. Serveur local (Ollama / LM Studio / etc.)
 // ---------------------------------------------------------------------------
 async function callLocal(options, messages) {
   if (!options.localServerUrl) throw new Error("NO_LOCAL_URL");
@@ -299,7 +340,7 @@ async function callLocal(options, messages) {
 }
 
 // ---------------------------------------------------------------------------
-// 9. OpenAI Direct
+// 11. OpenAI Direct
 // ---------------------------------------------------------------------------
 async function callOpenAIDirect(options, messages) {
   if (!options.apiKey) throw new Error("NO_API_KEY");
@@ -334,7 +375,7 @@ async function callOpenAIDirect(options, messages) {
 }
 
 // ---------------------------------------------------------------------------
-// 10. Helpers — gestion réponse et erreurs
+// 12. Helpers — gestion réponse et erreurs
 // ---------------------------------------------------------------------------
 async function handleResponse(response) {
   if (!response.ok) {
@@ -354,14 +395,15 @@ function handleFetchError(error) {
   if (error.message.startsWith("API_") || error.message.startsWith("NO_") ||
       error.message === "RATE_LIMITED" || error.message === "SERVER_ERROR" ||
       error.message === "TIMEOUT" || error.message === "INVALID_AZURE_ENDPOINT" ||
-      error.message === "LOCAL_CONNECTION_REFUSED") {
+      error.message === "LOCAL_CONNECTION_REFUSED" || error.message === "NO_API_KEY_SCALEWAY" ||
+      error.message === "NO_MODEL_SCALEWAY") {
     return error;
   }
   return new Error("NETWORK_ERROR");
 }
 
 // ---------------------------------------------------------------------------
-// 11. Test connexion serveur local (appelé depuis options.js)
+// 13. Test connexion serveur local (appelé depuis options.js)
 // ---------------------------------------------------------------------------
 async function testLocalConnection(config) {
   const baseUrl = (config.localServerUrl || "http://localhost:11434/v1").replace(/\/+$/, "");

@@ -14,6 +14,10 @@
   const azureEndpointInput = document.getElementById("azure-endpoint");
   const azureDeploymentInput = document.getElementById("azure-deployment");
 
+  // Scaleway
+  const scalewayApiKeyInput = document.getElementById("scaleway-api-key");
+  const scalewayModelSelect = document.getElementById("scaleway-model");
+
   // Local
   const localServerUrlInput = document.getElementById("local-server-url");
   const localModelInput = document.getElementById("local-model");
@@ -37,6 +41,7 @@
 
   // Provider field containers
   const fieldsAzure = document.getElementById("fields-azure");
+  const fieldsScaleway = document.getElementById("fields-scaleway");
   const fieldsLocal = document.getElementById("fields-local");
   const fieldsOpenai = document.getElementById("fields-openai");
 
@@ -47,6 +52,7 @@
     const provider = providerSelect.value;
 
     fieldsAzure.classList.toggle("active", provider === "azure");
+    fieldsScaleway.classList.toggle("active", provider === "scaleway");
     fieldsLocal.classList.toggle("active", provider === "local");
     fieldsOpenai.classList.toggle("active", provider === "openai");
 
@@ -90,6 +96,8 @@
       azureApiKey: "",
       azureEndpoint: "",
       azureDeployment: "",
+      scalewayApiKey: "",
+      scalewayModel: "llama-3.3-70b-instruct",
       localServerUrl: "http://localhost:11434/v1",
       localModel: "llama3",
       localRequireKey: false,
@@ -104,6 +112,8 @@
       azureApiKeyInput.value = items.azureApiKey;
       azureEndpointInput.value = items.azureEndpoint;
       azureDeploymentInput.value = items.azureDeployment;
+      scalewayApiKeyInput.value = items.scalewayApiKey;
+      scalewayModelSelect.value = items.scalewayModel;
       localServerUrlInput.value = items.localServerUrl;
       localModelInput.value = items.localModel;
       localRequireKeyCheckbox.checked = items.localRequireKey;
@@ -174,6 +184,9 @@
       azureApiKey: azureApiKeyInput.value.trim(),
       azureEndpoint: azureEndpointInput.value.trim(),
       azureDeployment: azureDeploymentInput.value.trim(),
+      // Scaleway
+      scalewayApiKey: scalewayApiKeyInput.value.trim(),
+      scalewayModel: scalewayModelSelect.value,
       // Local
       localServerUrl: localServerUrlInput.value.trim() || "http://localhost:11434/v1",
       localModel: localModelInput.value.trim() || "llama3",

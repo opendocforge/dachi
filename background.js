@@ -71,7 +71,7 @@ async function buildMenus() {
 
   chrome.contextMenus.create({
     id: "assistant_medecin_root",
-    title: "🩺 Assistant Médecin",
+    title: "Dachi",
     contexts: ["selection"]
   });
 

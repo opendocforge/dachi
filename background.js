@@ -61,15 +61,11 @@ const MENU_MAP = new Map(MENU_ITEMS.map(item => [item.id, item]));
  * Reconstruit le menu contextuel depuis storage + defaults.
  * Verrou isBuilding pour éviter les appels concurrents (duplicate id).
  */
-let isBuilding = false;
-async function buildMenus() {
-  if (isBuilding) return;
-  isBuilding = true;
-  try {
-    await _buildMenus();
-  } finally {
-    isBuilding = false;
-  }
+let buildMenusPromise = null;
+function buildMenus() {
+  // Chaîner les appels pour éviter tout doublon (pas de concurrence)
+  buildMenusPromise = (buildMenusPromise || Promise.resolve()).then(() => _buildMenus());
+  return buildMenusPromise;
 }
 
 async function _buildMenus() {
@@ -78,7 +74,8 @@ async function _buildMenus() {
     customMenuItems: []
   });
 
-  await chrome.contextMenus.removeAll();
+  // Envelopper removeAll dans un vrai callback pour garantir l'attente
+  await new Promise(resolve => chrome.contextMenus.removeAll(resolve));
 
   chrome.contextMenus.create({
     id: "assistant_medecin_root",

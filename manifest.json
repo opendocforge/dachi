@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Dachi",
-  "version": "1.1.0",
-  "description": "Dachi — Extension de productivité médicale pour médecin généraliste. Menu contextuel intelligent avec IA pour corriger, résumer, interpréter et rédiger.",
+  "version": "1.2.0",
+  "description": "Dachi — Extension de productivité rédactionnelle pour professionnels de santé. Brouillons administratifs générés par IA. N'est pas un dispositif médical.",
   "permissions": [
     "contextMenus",
     "scripting",
@@ -11,7 +11,7 @@
   ],
   "host_permissions": [
     "https://api.openai.com/*",
-    "https://*.openai.azure.com/*",
+    "https://api.scaleway.ai/*",
     "http://localhost:*/*",
     "http://127.0.0.1:*/*"
   ],

@@ -27,32 +27,22 @@ const MENU_ITEMS = [
   {
     id: "resumer",
     title: "📋 Résumer",
-    prompt: `Tu es un assistant médical pour un médecin généraliste français. Résume le texte médical suivant de manière structurée en bullet points. Extrais : le motif/contexte, les éléments clés (diagnostics, résultats, traitements), les conclusions et la conduite à tenir. Sois concis mais ne perds aucune information cliniquement pertinente.`
-  },
-  {
-    id: "interactions_medicamenteuses",
-    title: "⚠️ Interactions médicamenteuses",
-    prompt: `Tu es un pharmacologue clinicien expert. Analyse la liste de médicaments suivante et identifie toutes les interactions médicamenteuses potentielles. Classe-les par niveau de gravité (Contre-indication absolue / Association déconseillée / Précaution d'emploi / À prendre en compte). Pour chaque interaction, précise : les médicaments concernés, le mécanisme, le risque clinique et la conduite à tenir. Termine OBLIGATOIREMENT par : 'Cette analyse est une aide à la décision et ne remplace pas la consultation des bases officielles (Thériaque, Vidal, ANSM). Vérifiez systématiquement.'`
+    prompt: `Tu assistes un médecin dans la synthèse rédactionnelle d'un texte. Résume le texte suivant de manière structurée en bullet points. Extrais : le motif/contexte, les éléments clés, les conclusions et les éléments à retenir. Sois concis. Le résumé est une aide rédactionnelle uniquement, le médecin reste seul responsable de l'analyse clinique.`
   },
   {
     id: "courrier_correspondance",
-    title: "✉️ Courrier de correspondance",
-    prompt: `Tu es un assistant de rédaction médicale pour un médecin généraliste français. À partir du contexte clinique suivant, rédige un brouillon de courrier d'adressage à un médecin spécialiste. Structure : formule d'appel confraternelle, motif d'adressage, antécédents pertinents, histoire de la maladie, examen clinique et résultats, traitement en cours, question posée ou avis demandé, formule de politesse confraternelle. Ton médical professionnel. Laisse des [PLACEHOLDERS] pour les informations manquantes (nom du patient, dates, etc.).`
+    title: "✉️ Brouillon de courrier",
+    prompt: `Tu es un assistant de rédaction administrative pour un médecin généraliste français. À partir du contexte suivant, rédige un BROUILLON de courrier d'adressage à un confrère. Structure : formule d'appel confraternelle, motif d'adressage, éléments de contexte, question posée, formule de politesse. Laisse des [PLACEHOLDERS] pour toutes les informations à vérifier. Termine OBLIGATOIREMENT par : '[BROUILLON GÉNÉRÉ PAR IA — À RELIRE, CORRIGER ET VALIDER PAR LE MÉDECIN AVANT ENVOI]'.`
   },
   {
     id: "certificat_medical",
-    title: "📜 Certificat médical",
-    prompt: `Tu es un assistant de rédaction médicale expert en droit médical français. Rédige un brouillon de certificat médical à partir du contexte suivant. Règles strictes : 1) Ne jamais mentionner de diagnostic sauf demande explicite (ALD, etc.), 2) Utiliser uniquement des constatations objectives ('Je soussigné certifie avoir examiné ce jour...'), 3) Inclure 'Certificat établi à la demande de l'intéressé(e) et remis en main propre pour faire valoir ce que de droit', 4) Prévoir les champs [NOM DU MÉDECIN], [ADRESSE CABINET], [RPPS], [NOM PATIENT], [DATE DE NAISSANCE], [DATE DU JOUR]. Ne rédige JAMAIS de certificat de complaisance.`
-  },
-  {
-    id: "interpreter_examens",
-    title: "🔬 Interpréter examens",
-    prompt: `Tu es un médecin spécialiste en interprétation d'examens complémentaires, assistant un médecin généraliste français. Analyse les résultats suivants quel que soit leur type. Procède ainsi : 1) Identifie le type d'examen, 2) Pour la biologie : indique si chaque paramètre est normal, bas ou élevé et regroupe les anomalies par système, 3) Pour l'imagerie et examens fonctionnels : résume les éléments normaux et pathologiques, mets en évidence les anomalies significatives, 4) Pour la microbiologie : identifie les germes, leur sensibilité et propose les options thérapeutiques de première intention, 5) Propose les hypothèses diagnostiques les plus probables et les examens complémentaires à envisager. Termine OBLIGATOIREMENT par : 'Interprétation à confronter avec le contexte clinique. Ne constitue pas un diagnostic.'`
+    title: "📜 Brouillon de certificat",
+    prompt: `Tu es un assistant de rédaction administrative. Produis un BROUILLON de certificat médical à partir du contexte fourni, en respectant la forme habituelle. Règles strictes : 1) Ne mentionne JAMAIS de diagnostic, 2) N'utilise que des constatations objectives ('Je soussigné certifie avoir examiné ce jour...'), 3) Inclus 'Certificat établi à la demande de l'intéressé(e) et remis en main propre pour faire valoir ce que de droit', 4) Prévois les champs [NOM DU MÉDECIN], [ADRESSE CABINET], [RPPS], [NOM PATIENT], [DATE DE NAISSANCE], [DATE DU JOUR]. Termine OBLIGATOIREMENT par : '[BROUILLON GÉNÉRÉ PAR IA — NON VALIDÉ — LE MÉDECIN EST SEUL RESPONSABLE DE LA RÉDACTION FINALE, DE SA CONFORMITÉ LÉGALE ET DE SA SIGNATURE]'.`
   },
   {
     id: "traduire_francais",
     title: "🌐 Traduire en français",
-    prompt: `Tu es un traducteur médical expert. Traduis le texte suivant en français. Conserve les termes médicaux techniques en français médical standard (pas de vulgarisation). Renvoie uniquement la traduction.`
+    prompt: `Tu es un traducteur professionnel. Traduis le texte suivant en français en conservant la terminologie technique. Renvoie uniquement la traduction.`
   }
 ];
 
@@ -161,6 +151,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // 6. Fonction abstraite callAI — supporte les 3 fournisseurs
 // ---------------------------------------------------------------------------
 async function callAI(systemPrompt, userText) {
+  // Vérifier l'acceptation des CGU avant tout appel API
+  const cgu = await chrome.storage.sync.get({ cguAccepted: "" });
+  if (cgu.cguAccepted !== "1.0") {
+    chrome.runtime.openOptionsPage();
+    throw new Error("CGU_NOT_ACCEPTED");
+  }
+
   const options = await chrome.storage.sync.get({
     provider: "scaleway",
     // Scaleway HDS
@@ -340,7 +337,7 @@ function handleFetchError(error) {
       error.message === "RATE_LIMITED" || error.message === "SERVER_ERROR" ||
       error.message === "TIMEOUT" || error.message === "INVALID_AZURE_ENDPOINT" ||
       error.message === "LOCAL_CONNECTION_REFUSED" || error.message === "NO_API_KEY_SCALEWAY" ||
-      error.message === "NO_MODEL_SCALEWAY") {
+      error.message === "NO_MODEL_SCALEWAY" || error.message === "CGU_NOT_ACCEPTED") {
     return error;
   }
   return new Error("NETWORK_ERROR");

@@ -497,9 +497,203 @@
     .hidden {
       display: none !important;
     }
+
+    /* CGU Modal */
+    .cgu-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 20px;
+    }
+
+    .cgu-modal {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      max-width: 720px;
+      width: 100%;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .cgu-header {
+      padding: 24px 28px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .cgu-header h2 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .cgu-body {
+      padding: 24px 28px;
+      overflow-y: auto;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+
+    .cgu-body h3 {
+      color: var(--text);
+      font-size: 15px;
+      margin: 18px 0 8px;
+    }
+
+    .cgu-body h3:first-child {
+      margin-top: 0;
+    }
+
+    .cgu-body ul, .cgu-body ol {
+      padding-left: 22px;
+      margin: 8px 0;
+    }
+
+    .cgu-body li {
+      margin-bottom: 4px;
+    }
+
+    .cgu-body strong {
+      color: var(--text);
+    }
+
+    .cgu-warning {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-light);
+      border-left: 4px solid var(--warning);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      margin: 12px 0;
+      color: #7C2D12;
+    }
+
+    .cgu-footer {
+      padding: 20px 28px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .cgu-checkbox {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--text);
+    }
+
+    .cgu-checkbox input {
+      margin-top: 3px;
+      flex-shrink: 0;
+    }
+
+    .cgu-accept-btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 200ms;
+    }
+
+    .cgu-accept-btn:hover:not(:disabled) {
+      background: var(--primary-hover);
+    }
+
+    .cgu-accept-btn:disabled {
+      background: var(--text-muted);
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    /* Legal section */
+    .legal-section {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .legal-section h3 {
+      font-size: 14px;
+      color: var(--text);
+      margin: 14px 0 6px;
+    }
+
+    .legal-section h3:first-child {
+      margin-top: 0;
+    }
+
+    .legal-section ul {
+      padding-left: 20px;
+      margin: 6px 0;
+    }
   </style>
 </head>
 <body>
+
+  <!-- CGU Modal (affiché au premier lancement) -->
+  <div class="cgu-overlay hidden" id="cgu-overlay">
+    <div class="cgu-modal">
+      <div class="cgu-header">
+        <h2>⚖️ Conditions d'utilisation — À lire attentivement</h2>
+      </div>
+      <div class="cgu-body">
+        <div class="cgu-warning">
+          <strong>⚠️ Dachi n'est PAS un dispositif médical.</strong><br>
+          Dachi est un outil d'aide à la <strong>rédaction administrative et bureautique</strong>. Il ne constitue en aucun cas un dispositif d'aide à la décision médicale, au diagnostic, au traitement ou à l'interprétation d'examens.
+        </div>
+
+        <h3>1. Nature de l'outil</h3>
+        <p>Dachi est une extension de productivité rédactionnelle. Les contenus générés sont des <strong>brouillons</strong> à vocation purement administrative (courriers, certificats, résumés, traductions, reformulations).</p>
+
+        <h3>2. Responsabilité du professionnel</h3>
+        <ul>
+          <li>Le médecin utilisateur reste <strong>seul responsable</strong> de toute décision médicale, diagnostic, prescription et rédaction finale.</li>
+          <li>Tout contenu généré doit être <strong>relu, corrigé et validé</strong> par le praticien avant usage.</li>
+          <li>L'auteur de l'extension décline toute responsabilité quant à l'usage qui en est fait.</li>
+        </ul>
+
+        <h3>3. Données de santé et RGPD</h3>
+        <ul>
+          <li>Le médecin utilisateur est <strong>responsable du traitement</strong> au sens du RGPD.</li>
+          <li>Il lui appartient de réaliser une <strong>AIPD (analyse d'impact)</strong> et de signer un <strong>contrat de sous-traitance (art. 28 RGPD)</strong> avec le fournisseur d'API choisi.</li>
+          <li>L'extension ne stocke, ne journalise ni ne transmet aucune donnée en dehors du fournisseur API configuré par l'utilisateur.</li>
+          <li>Le choix du fournisseur (Scaleway HDS, serveur local, OpenAI) relève de la seule responsabilité de l'utilisateur.</li>
+        </ul>
+
+        <h3>4. Secret médical</h3>
+        <p>L'utilisateur s'engage à ne transmettre via l'extension <strong>aucune donnée permettant d'identifier directement un patient</strong> (nom, prénom, NIR, adresse). Seules des données anonymisées ou pseudonymisées doivent être traitées.</p>
+
+        <h3>5. Limites de l'IA</h3>
+        <p>Les modèles d'IA peuvent produire des erreurs, omissions ou formulations inexactes (« hallucinations »). Aucune confiance aveugle ne doit être accordée aux contenus générés.</p>
+
+        <h3>6. Aucune garantie</h3>
+        <p>L'extension est fournie « en l'état » sous licence MIT, sans aucune garantie de résultat, de disponibilité, ni d'adéquation à un usage particulier.</p>
+      </div>
+      <div class="cgu-footer">
+        <label class="cgu-checkbox">
+          <input type="checkbox" id="cgu-accept-checkbox">
+          <span>J'ai lu et j'accepte les conditions ci-dessus. Je comprends que Dachi est un outil de productivité rédactionnelle et non un dispositif médical, et que je reste seul responsable de tout usage clinique ou administratif.</span>
+        </label>
+        <button type="button" class="cgu-accept-btn" id="cgu-accept-btn" disabled>
+          Accepter et continuer
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div class="options-container">
 
     <!-- Header -->
@@ -689,11 +883,40 @@
       💾 Sauvegarder les paramètres
     </button>
 
+    <!-- Section Mentions légales -->
+    <div class="card">
+      <div class="card-title">
+        <span class="icon">⚖️</span> Mentions légales
+      </div>
+      <div class="legal-section">
+        <h3>Nature de l'outil</h3>
+        <p>Dachi est une extension de <strong>productivité rédactionnelle</strong>. Ce n'est <strong>PAS un dispositif médical</strong> au sens du règlement (UE) 2017/745 (MDR). Les contenus générés sont des brouillons administratifs devant être relus et validés par le praticien.</p>
+
+        <h3>Responsabilité</h3>
+        <p>Le médecin utilisateur est seul responsable de l'usage qui est fait de l'extension, de la validation des contenus générés, et de la conformité de son infrastructure au RGPD et à la réglementation HDS.</p>
+
+        <h3>Données</h3>
+        <ul>
+          <li>Aucune donnée n'est stockée, journalisée ou transmise par l'extension en dehors du fournisseur d'API choisi par l'utilisateur.</li>
+          <li>Les clés API sont stockées via <code>chrome.storage.sync</code> (compte Google de l'utilisateur).</li>
+          <li>L'utilisateur est <strong>responsable de traitement</strong> au sens du RGPD. Un contrat de sous-traitance (art. 28) doit être signé avec le fournisseur d'API.</li>
+          <li>L'utilisateur s'engage à ne transmettre que des données <strong>anonymisées ou pseudonymisées</strong>.</li>
+        </ul>
+
+        <h3>Licence</h3>
+        <p>Extension open-source sous licence MIT, fournie « en l'état » sans garantie d'aucune sorte.</p>
+
+        <p style="margin-top: 14px;">
+          <button type="button" class="test-btn" id="review-cgu-btn">📖 Relire les conditions d'utilisation</button>
+        </p>
+      </div>
+    </div>
+
     <!-- Footer -->
     <p class="footer-info">
-      Dachi v1.1.0 — Les données de configuration sont synchronisées via votre compte Chrome.<br>
-      Vos clés API sont stockées localement et ne sont jamais partagées.<br>
-      Aucune donnée de santé n'est stockée par l'extension.
+      Dachi v1.2.0 — Outil de productivité rédactionnelle.<br>
+      Aucune donnée n'est stockée par l'extension. L'utilisateur reste seul responsable des contenus générés.<br>
+      <a href="#" id="revoke-cgu-link" style="color: var(--text-muted); font-size: 11px;">Révoquer l'acceptation des CGU</a>
     </p>
 
   </div>

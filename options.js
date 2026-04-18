@@ -5,6 +5,53 @@
 
 (() => {
   // -------------------------------------------------------------------------
+  // CGU — acceptation obligatoire au premier lancement
+  // -------------------------------------------------------------------------
+  const CGU_VERSION = "1.0";
+  const cguOverlay = document.getElementById("cgu-overlay");
+  const cguCheckbox = document.getElementById("cgu-accept-checkbox");
+  const cguAcceptBtn = document.getElementById("cgu-accept-btn");
+  const reviewCguBtn = document.getElementById("review-cgu-btn");
+  const revokeCguLink = document.getElementById("revoke-cgu-link");
+
+  chrome.storage.sync.get({ cguAccepted: "", cguAcceptedAt: "" }, (items) => {
+    if (items.cguAccepted !== CGU_VERSION) {
+      cguOverlay.classList.remove("hidden");
+    }
+  });
+
+  cguCheckbox.addEventListener("change", () => {
+    cguAcceptBtn.disabled = !cguCheckbox.checked;
+  });
+
+  cguAcceptBtn.addEventListener("click", () => {
+    if (!cguCheckbox.checked) return;
+    chrome.storage.sync.set({
+      cguAccepted: CGU_VERSION,
+      cguAcceptedAt: new Date().toISOString()
+    }, () => {
+      cguOverlay.classList.add("hidden");
+    });
+  });
+
+  reviewCguBtn.addEventListener("click", () => {
+    cguCheckbox.checked = false;
+    cguAcceptBtn.disabled = true;
+    cguOverlay.classList.remove("hidden");
+  });
+
+  revokeCguLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (confirm("Révoquer l'acceptation des CGU ? Elles devront être acceptées à nouveau.")) {
+      chrome.storage.sync.set({ cguAccepted: "", cguAcceptedAt: "" }, () => {
+        cguCheckbox.checked = false;
+        cguAcceptBtn.disabled = true;
+        cguOverlay.classList.remove("hidden");
+      });
+    }
+  });
+
+  // -------------------------------------------------------------------------
   // Références DOM
   // -------------------------------------------------------------------------
   const providerSelect = document.getElementById("provider");

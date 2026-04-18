@@ -97,7 +97,7 @@
       azureEndpoint: "",
       azureDeployment: "",
       scalewayApiKey: "",
-      scalewayModel: "llama-3.3-70b-instruct",
+      scalewayModel: "qwen3.5-397b-a17b",
       localServerUrl: "http://localhost:11434/v1",
       localModel: "llama3",
       localRequireKey: false,

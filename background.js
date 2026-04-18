@@ -169,7 +169,7 @@ async function callAI(systemPrompt, userText) {
     azureDeployment: "",
     // Scaleway HDS
     scalewayApiKey: "",
-    scalewayModel: "llama-3.3-70b-instruct",
+    scalewayModel: "qwen3.5-397b-a17b",
     // Serveur local
     localServerUrl: "http://localhost:11434/v1",
     localModel: "llama3",

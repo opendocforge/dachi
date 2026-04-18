@@ -59,9 +59,20 @@ const MENU_MAP = new Map(MENU_ITEMS.map(item => [item.id, item]));
 
 /**
  * Reconstruit le menu contextuel depuis storage + defaults.
- * Appelé au démarrage et à chaque modification des items.
+ * Verrou isBuilding pour éviter les appels concurrents (duplicate id).
  */
+let isBuilding = false;
 async function buildMenus() {
+  if (isBuilding) return;
+  isBuilding = true;
+  try {
+    await _buildMenus();
+  } finally {
+    isBuilding = false;
+  }
+}
+
+async function _buildMenus() {
   const { menuOverrides, customMenuItems } = await chrome.storage.sync.get({
     menuOverrides: {},
     customMenuItems: []

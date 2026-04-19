@@ -339,11 +339,18 @@ async function callScaleway(options, messages) {
     model: options.scalewayModel,
     temperature: options.temperature,
     max_tokens: 2000,
-    messages: messages
+    messages: messages,
+    response_format: { type: "text" }
   };
 
+  // qwen3.5 est un modèle de raisonnement → forcer un effort modéré pour
+  // éviter qu'il consomme tout le budget tokens en pensée interne.
+  if (/^qwen/i.test(options.scalewayModel)) {
+    body.reasoning_effort = "medium";
+  }
+
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
 
   const endpoint = `https://api.scaleway.ai/${options.scalewayProjectId}/v1/chat/completions`;
 
@@ -466,7 +473,10 @@ async function handleResponse(response) {
     throw new Error(`API_ERROR: HTTP ${status} — ${bodyMsg}`);
   }
   const data = await response.json();
-  return data.choices?.[0]?.message?.content || "Aucune réponse générée.";
+  const msg = data.choices?.[0]?.message;
+  // Fallback : certains modèles de raisonnement (qwen3.5) renvoient le
+  // texte dans reasoning_content quand content est vide.
+  return msg?.content || msg?.reasoning_content || "Aucune réponse générée.";
 }
 
 function handleFetchError(error) {
@@ -498,12 +508,16 @@ async function testScalewayConnection(config) {
   const body = {
     model,
     temperature: 0.1,
-    max_tokens: 5,
+    max_tokens: 200,
     messages: [
-      { role: "system", content: "ping" },
+      { role: "system", content: "Réponds simplement 'OK'." },
       { role: "user", content: "ping" }
-    ]
+    ],
+    response_format: { type: "text" }
   };
+  if (/^qwen/i.test(model)) {
+    body.reasoning_effort = "medium";
+  }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -522,8 +536,9 @@ async function testScalewayConnection(config) {
 
     if (response.ok) {
       const data = await response.json().catch(() => ({}));
-      const reply = data.choices?.[0]?.message?.content || "(réponse vide)";
-      return { ok: true, info: `Connexion réussie. Modèle "${model}" — réponse : "${String(reply).slice(0, 60)}"` };
+      const m = data.choices?.[0]?.message;
+      const reply = m?.content || m?.reasoning_content || "(réponse vide)";
+      return { ok: true, info: `Connexion réussie. Modèle "${model}" — réponse : "${String(reply).slice(0, 80)}"` };
     }
 
     // Récupérer le vrai message d'erreur

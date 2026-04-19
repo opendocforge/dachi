@@ -338,15 +338,15 @@ async function callScaleway(options, messages) {
   const body = {
     model: options.scalewayModel,
     temperature: options.temperature,
-    max_tokens: 2000,
+    max_tokens: 4000,
     messages: messages,
     response_format: { type: "text" }
   };
 
-  // qwen3.5 est un modèle de raisonnement → forcer un effort modéré pour
-  // éviter qu'il consomme tout le budget tokens en pensée interne.
+  // qwen3.5 est un modèle de raisonnement → effort 'low' pour laisser
+  // largement la place à la réponse réelle (sinon finish_reason=length).
   if (/^qwen/i.test(options.scalewayModel)) {
-    body.reasoning_effort = "medium";
+    body.reasoning_effort = "low";
   }
 
   const controller = new AbortController();
@@ -508,7 +508,7 @@ async function testScalewayConnection(config) {
   const body = {
     model,
     temperature: 0.1,
-    max_tokens: 200,
+    max_tokens: 2000,
     messages: [
       { role: "system", content: "Réponds simplement 'OK'." },
       { role: "user", content: "ping" }
@@ -516,7 +516,7 @@ async function testScalewayConnection(config) {
     response_format: { type: "text" }
   };
   if (/^qwen/i.test(model)) {
-    body.reasoning_effort = "medium";
+    body.reasoning_effort = "low";
   }
 
   const controller = new AbortController();
@@ -539,7 +539,7 @@ async function testScalewayConnection(config) {
       const m = data.choices?.[0]?.message;
       const finishReason = data.choices?.[0]?.finish_reason;
       const usage = data.usage;
-      const reply = m?.content || m?.reasoning_content;
+      const reply = m?.content || m?.reasoning;
       if (reply) {
         return { ok: true, info: `Connexion réussie. Modèle "${model}" — réponse : "${String(reply).slice(0, 120)}"` };
       }

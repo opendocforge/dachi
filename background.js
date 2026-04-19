@@ -339,18 +339,17 @@ async function callScaleway(options, messages) {
     model: options.scalewayModel,
     temperature: options.temperature,
     max_tokens: 4000,
-    messages: messages,
-    response_format: { type: "text" }
+    messages: messages
   };
 
-  // qwen3.5 est un modèle de raisonnement → effort 'low' pour laisser
-  // largement la place à la réponse réelle (sinon finish_reason=length).
+  // Réglages spécifiques aux modèles de raisonnement (qwen3.5)
   if (/^qwen/i.test(options.scalewayModel)) {
     body.reasoning_effort = "low";
+    body.response_format = { type: "text" };
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60000);
+  const timeoutId = setTimeout(() => controller.abort(), 45000);
 
   const endpoint = `https://api.scaleway.ai/${options.scalewayProjectId}/v1/chat/completions`;
 
@@ -512,11 +511,11 @@ async function testScalewayConnection(config) {
     messages: [
       { role: "system", content: "Réponds simplement 'OK'." },
       { role: "user", content: "ping" }
-    ],
-    response_format: { type: "text" }
+    ]
   };
   if (/^qwen/i.test(model)) {
     body.reasoning_effort = "low";
+    body.response_format = { type: "text" };
   }
 
   const controller = new AbortController();

@@ -537,8 +537,17 @@ async function testScalewayConnection(config) {
     if (response.ok) {
       const data = await response.json().catch(() => ({}));
       const m = data.choices?.[0]?.message;
-      const reply = m?.content || m?.reasoning_content || "(réponse vide)";
-      return { ok: true, info: `Connexion réussie. Modèle "${model}" — réponse : "${String(reply).slice(0, 80)}"` };
+      const finishReason = data.choices?.[0]?.finish_reason;
+      const usage = data.usage;
+      const reply = m?.content || m?.reasoning_content;
+      if (reply) {
+        return { ok: true, info: `Connexion réussie. Modèle "${model}" — réponse : "${String(reply).slice(0, 120)}"` };
+      }
+      // Pas de contenu : on renvoie un dump pour debug
+      return {
+        ok: false,
+        error: `Connexion OK mais réponse vide. finish_reason=${finishReason}, usage=${JSON.stringify(usage)}, message=${JSON.stringify(m)}, raw=${JSON.stringify(data).slice(0, 800)}`
+      };
     }
 
     // Récupérer le vrai message d'erreur

@@ -217,6 +217,46 @@
   });
 
   // -------------------------------------------------------------------------
+  // 6bis. Test de connexion Scaleway
+  // -------------------------------------------------------------------------
+  const testScalewayBtn = document.getElementById("test-scaleway-btn");
+  const testScalewayResult = document.getElementById("test-scaleway-result");
+  if (testScalewayBtn) {
+    testScalewayBtn.addEventListener("click", async () => {
+      testScalewayBtn.disabled = true;
+      const oldLabel = testScalewayBtn.textContent;
+      testScalewayBtn.textContent = "⏳ Test en cours...";
+      testScalewayResult.textContent = "";
+      testScalewayResult.style.color = "";
+
+      try {
+        const config = {
+          scalewayApiKey: scalewayApiKeyInput.value.trim(),
+          scalewayProjectId: scalewayProjectIdInput.value.trim(),
+          scalewayModel: scalewayModelSelect.value
+        };
+        const result = await chrome.runtime.sendMessage({
+          action: "testScaleway",
+          config: config
+        });
+        if (result && result.ok) {
+          testScalewayResult.textContent = "✅ " + (result.info || "Connexion réussie.");
+          testScalewayResult.style.color = "#16A34A";
+        } else {
+          testScalewayResult.textContent = "❌ " + (result?.error || "Erreur inconnue");
+          testScalewayResult.style.color = "#DC2626";
+        }
+      } catch (err) {
+        testScalewayResult.textContent = "❌ " + err.message;
+        testScalewayResult.style.color = "#DC2626";
+      }
+
+      testScalewayBtn.disabled = false;
+      testScalewayBtn.textContent = oldLabel;
+    });
+  }
+
+  // -------------------------------------------------------------------------
   // 7. Sauvegarder les paramètres
   // -------------------------------------------------------------------------
   saveBtn.addEventListener("click", () => {

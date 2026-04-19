@@ -241,6 +241,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch(err => sendResponse({ ok: false, error: err.message }));
     return true;
   }
+  if (message.action === "testScaleway") {
+    testScalewayConnection(message.config)
+      .then(result => sendResponse(result))
+      .catch(err => sendResponse({ ok: false, error: err.message }));
+    return true;
+  }
   if (message.action === "rebuildMenus") {
     buildMenus().then(() => sendResponse({ ok: true }));
     return true;
@@ -446,11 +452,18 @@ async function callOpenAIDirect(options, messages) {
 async function handleResponse(response) {
   if (!response.ok) {
     const status = response.status;
-    if (status === 401) throw new Error("API_KEY_INVALID");
+    // Tenter d'extraire le vrai message d'erreur du body (utile pour debug Scaleway)
+    let bodyMsg = "";
+    try {
+      const errorData = await response.json();
+      bodyMsg = errorData.error?.message || errorData.message || errorData.detail || JSON.stringify(errorData);
+    } catch (_) {
+      try { bodyMsg = await response.text(); } catch (_) {}
+    }
+    if (status === 401) throw new Error(`API_KEY_INVALID: HTTP 401 — ${bodyMsg}`);
     if (status === 429) throw new Error("RATE_LIMITED");
-    if (status >= 500) throw new Error("SERVER_ERROR");
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(`API_ERROR: ${errorData.error?.message || `Erreur HTTP ${status}`}`);
+    if (status >= 500) throw new Error(`SERVER_ERROR: HTTP ${status} — ${bodyMsg}`);
+    throw new Error(`API_ERROR: HTTP ${status} — ${bodyMsg}`);
   }
   const data = await response.json();
   return data.choices?.[0]?.message?.content || "Aucune réponse générée.";
@@ -467,6 +480,72 @@ function handleFetchError(error) {
     return error;
   }
   return new Error("NETWORK_ERROR");
+}
+
+// ---------------------------------------------------------------------------
+// 13bis. Test connexion Scaleway (appelé depuis options.js)
+// ---------------------------------------------------------------------------
+async function testScalewayConnection(config) {
+  const apiKey = (config.scalewayApiKey || "").trim();
+  const projectId = (config.scalewayProjectId || "").trim();
+  const model = (config.scalewayModel || "").trim();
+
+  if (!apiKey) return { ok: false, error: "Clé API Scaleway manquante." };
+  if (!projectId) return { ok: false, error: "ID de projet Scaleway manquant." };
+  if (!model) return { ok: false, error: "Modèle Scaleway non sélectionné." };
+
+  const endpoint = `https://api.scaleway.ai/${projectId}/v1/chat/completions`;
+  const body = {
+    model,
+    temperature: 0.1,
+    max_tokens: 5,
+    messages: [
+      { role: "system", content: "ping" },
+      { role: "user", content: "ping" }
+    ]
+  };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const data = await response.json().catch(() => ({}));
+      const reply = data.choices?.[0]?.message?.content || "(réponse vide)";
+      return { ok: true, info: `Connexion réussie. Modèle "${model}" — réponse : "${String(reply).slice(0, 60)}"` };
+    }
+
+    // Récupérer le vrai message d'erreur
+    let bodyMsg = "";
+    try {
+      const errorData = await response.json();
+      bodyMsg = errorData.error?.message || errorData.message || errorData.detail || JSON.stringify(errorData);
+    } catch (_) {
+      try { bodyMsg = await response.text(); } catch (_) {}
+    }
+    return {
+      ok: false,
+      error: `HTTP ${response.status} — ${bodyMsg || "erreur inconnue"}`,
+      endpoint
+    };
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === "AbortError") {
+      return { ok: false, error: "Délai dépassé (15 s)." };
+    }
+    return { ok: false, error: `Réseau : ${error.message}` };
+  }
 }
 
 // ---------------------------------------------------------------------------

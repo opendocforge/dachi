@@ -262,6 +262,7 @@ async function callAI(systemPrompt, userText) {
     provider: "scaleway",
     // Scaleway HDS
     scalewayApiKey: "",
+    scalewayProjectId: "",
     scalewayModel: "qwen3.5-397b-a17b",
     // Serveur local
     localServerUrl: "http://localhost:11434/v1",
@@ -325,6 +326,7 @@ async function callAI(systemPrompt, userText) {
 // ---------------------------------------------------------------------------
 async function callScaleway(options, messages) {
   if (!options.scalewayApiKey) throw new Error("NO_API_KEY_SCALEWAY");
+  if (!options.scalewayProjectId) throw new Error("NO_PROJECT_ID_SCALEWAY");
   if (!options.scalewayModel) throw new Error("NO_MODEL_SCALEWAY");
 
   const body = {
@@ -337,8 +339,10 @@ async function callScaleway(options, messages) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000);
 
+  const endpoint = `https://api.scaleway.ai/${options.scalewayProjectId}/v1/chat/completions`;
+
   try {
-    const response = await fetch("https://api.scaleway.ai/v1/chat/completions", {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${options.scalewayApiKey}`,
@@ -458,6 +462,7 @@ function handleFetchError(error) {
       error.message === "RATE_LIMITED" || error.message === "SERVER_ERROR" ||
       error.message === "TIMEOUT" || error.message === "INVALID_AZURE_ENDPOINT" ||
       error.message === "LOCAL_CONNECTION_REFUSED" || error.message === "NO_API_KEY_SCALEWAY" ||
+      error.message === "NO_PROJECT_ID_SCALEWAY" ||
       error.message === "NO_MODEL_SCALEWAY" || error.message === "CGU_NOT_ACCEPTED") {
     return error;
   }

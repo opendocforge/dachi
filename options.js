@@ -58,6 +58,7 @@
 
   // Scaleway
   const scalewayApiKeyInput = document.getElementById("scaleway-api-key");
+  const scalewayProjectIdInput = document.getElementById("scaleway-project-id");
   const scalewayModelSelect = document.getElementById("scaleway-model");
 
   // Local
@@ -137,6 +138,7 @@
     {
       provider: "scaleway",
       scalewayApiKey: "",
+      scalewayProjectId: "",
       scalewayModel: "qwen3.5-397b-a17b",
       localServerUrl: "http://localhost:11434/v1",
       localModel: "llama3",
@@ -151,6 +153,7 @@
     (items) => {
       providerSelect.value = items.provider;
       scalewayApiKeyInput.value = items.scalewayApiKey;
+      scalewayProjectIdInput.value = items.scalewayProjectId || "";
       scalewayModelSelect.value = items.scalewayModel;
       localServerUrlInput.value = items.localServerUrl;
       localModelInput.value = items.localModel;
@@ -221,6 +224,7 @@
       provider: providerSelect.value,
       // Scaleway
       scalewayApiKey: scalewayApiKeyInput.value.trim(),
+      scalewayProjectId: scalewayProjectIdInput.value.trim(),
       scalewayModel: scalewayModelSelect.value,
       // Local
       localServerUrl: localServerUrlInput.value.trim() || "http://localhost:11434/v1",

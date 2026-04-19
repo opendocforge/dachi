@@ -269,7 +269,7 @@ async function callAI(systemPrompt, userText) {
     // Scaleway HDS
     scalewayApiKey: "",
     scalewayProjectId: "",
-    scalewayModel: "qwen3.5-397b-a17b",
+    scalewayModel: "mistral-small-3.2-24b-instruct-2506",
     // Serveur local
     localServerUrl: "http://localhost:11434/v1",
     localModel: "llama3",
@@ -335,27 +335,17 @@ async function callScaleway(options, messages) {
   if (!options.scalewayProjectId) throw new Error("NO_PROJECT_ID_SCALEWAY");
   if (!options.scalewayModel) throw new Error("NO_MODEL_SCALEWAY");
 
-  // qwen (raisonnement) a besoin de plus de tokens pour penser + répondre
-  const isReasoning = /^qwen/i.test(options.scalewayModel);
   const body = {
     model: options.scalewayModel,
     temperature: options.temperature,
-    max_tokens: isReasoning ? 4000 : 1500,
-    messages: messages,
-    stream: false
+    max_tokens: 1500,
+    messages: messages
   };
-
-  if (isReasoning) {
-    body.reasoning_effort = "low";
-    body.response_format = { type: "text" };
-  }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 45000);
 
   const endpoint = `https://api.scaleway.ai/${options.scalewayProjectId}/v1/chat/completions`;
-  const t0 = performance.now();
-  console.log(`[Dachi/Scaleway] → POST ${endpoint} | model=${options.scalewayModel} | prompt=${JSON.stringify(messages).length} chars | max_tokens=${body.max_tokens}`);
 
   try {
     const response = await fetch(endpoint, {
@@ -367,17 +357,10 @@ async function callScaleway(options, messages) {
       body: JSON.stringify(body),
       signal: controller.signal
     });
-    const t1 = performance.now();
-    console.log(`[Dachi/Scaleway] ← HTTP ${response.status} en ${Math.round(t1 - t0)} ms (TTFB)`);
 
     clearTimeout(timeoutId);
-    const result = await handleResponse(response);
-    const t2 = performance.now();
-    console.log(`[Dachi/Scaleway] ✓ Réponse complète en ${Math.round(t2 - t0)} ms (parse: ${Math.round(t2 - t1)} ms) | ${result.length} chars`);
-    return result;
+    return await handleResponse(response);
   } catch (error) {
-    const tErr = performance.now();
-    console.warn(`[Dachi/Scaleway] ✗ Erreur après ${Math.round(tErr - t0)} ms :`, error.message);
     clearTimeout(timeoutId);
     throw handleFetchError(error);
   }
@@ -484,9 +467,7 @@ async function handleResponse(response) {
   }
   const data = await response.json();
   const msg = data.choices?.[0]?.message;
-  // Fallback : certains modèles de raisonnement (qwen3.5) renvoient le
-  // texte dans reasoning_content quand content est vide.
-  return msg?.content || msg?.reasoning_content || "Aucune réponse générée.";
+  return msg?.content || "Aucune réponse générée.";
 }
 
 function handleFetchError(error) {
@@ -524,11 +505,6 @@ async function testScalewayConnection(config) {
       { role: "user", content: "ping" }
     ]
   };
-  if (/^qwen/i.test(model)) {
-    body.reasoning_effort = "low";
-    body.response_format = { type: "text" };
-  }
-
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000);
 

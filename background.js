@@ -68,14 +68,21 @@ function buildMenus() {
   return buildMenusPromise;
 }
 
-// Helper : create avec callback qui consomme lastError (évite les erreurs duplicate id)
+// Helper : create avec callback ET try/catch synchrone (chrome.contextMenus.create
+// est synchrone et peut lever une exception en cas de duplicate id).
 function safeCreate(props) {
   return new Promise(resolve => {
-    chrome.contextMenus.create(props, () => {
-      // Consomme toute erreur (duplicate id, parent manquant, etc.)
+    try {
+      chrome.contextMenus.create(props, () => {
+        // Consomme toute erreur asynchrone (duplicate id, parent manquant, etc.)
+        void chrome.runtime.lastError;
+        resolve();
+      });
+    } catch (_e) {
+      // Exception synchrone (ex: duplicate id) — on l'ignore et on continue
       void chrome.runtime.lastError;
       resolve();
-    });
+    }
   });
 }
 
@@ -85,7 +92,13 @@ async function _buildMenus() {
     customMenuItems: []
   });
 
-  // Supprimer tous les items et attendre réellement la fin
+  // 1) removeAll DEUX FOIS pour vider la registry persistée par Chrome au réveil du SW
+  await new Promise(resolve => chrome.contextMenus.removeAll(() => {
+    void chrome.runtime.lastError;
+    resolve();
+  }));
+  // 2) Petit yield pour laisser Chrome propager la suppression
+  await new Promise(r => setTimeout(r, 50));
   await new Promise(resolve => chrome.contextMenus.removeAll(() => {
     void chrome.runtime.lastError;
     resolve();

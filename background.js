@@ -354,6 +354,8 @@ async function callScaleway(options, messages) {
   const timeoutId = setTimeout(() => controller.abort(), 45000);
 
   const endpoint = `https://api.scaleway.ai/${options.scalewayProjectId}/v1/chat/completions`;
+  const t0 = performance.now();
+  console.log(`[Dachi/Scaleway] → POST ${endpoint} | model=${options.scalewayModel} | prompt=${JSON.stringify(messages).length} chars | max_tokens=${body.max_tokens}`);
 
   try {
     const response = await fetch(endpoint, {
@@ -365,10 +367,17 @@ async function callScaleway(options, messages) {
       body: JSON.stringify(body),
       signal: controller.signal
     });
+    const t1 = performance.now();
+    console.log(`[Dachi/Scaleway] ← HTTP ${response.status} en ${Math.round(t1 - t0)} ms (TTFB)`);
 
     clearTimeout(timeoutId);
-    return await handleResponse(response);
+    const result = await handleResponse(response);
+    const t2 = performance.now();
+    console.log(`[Dachi/Scaleway] ✓ Réponse complète en ${Math.round(t2 - t0)} ms (parse: ${Math.round(t2 - t1)} ms) | ${result.length} chars`);
+    return result;
   } catch (error) {
+    const tErr = performance.now();
+    console.warn(`[Dachi/Scaleway] ✗ Erreur après ${Math.round(tErr - t0)} ms :`, error.message);
     clearTimeout(timeoutId);
     throw handleFetchError(error);
   }

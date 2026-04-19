@@ -68,19 +68,57 @@ function buildMenus() {
   return buildMenusPromise;
 }
 
-// Helper : create avec callback ET try/catch synchrone (chrome.contextMenus.create
-// est synchrone et peut lever une exception en cas de duplicate id).
-function safeCreate(props) {
+// Registre en mémoire des IDs déjà créés dans ce Service Worker.
+// Évite tout appel `create()` sur un id existant (Chrome log un warning
+// "Cannot create item with duplicate id" même quand on passe un callback,
+// sur certaines versions). On utilise `update()` à la place.
+const createdMenuIds = new Set();
+
+function createOrUpdateMenu(props) {
   return new Promise(resolve => {
+    if (createdMenuIds.has(props.id)) {
+      // Déjà créé → update (titre/parent peut avoir changé)
+      const updateProps = { ...props };
+      delete updateProps.id;
+      delete updateProps.parentId; // parentId n'est pas modifiable via update
+      try {
+        chrome.contextMenus.update(props.id, updateProps, () => {
+          void chrome.runtime.lastError;
+          resolve();
+        });
+      } catch (_e) {
+        void chrome.runtime.lastError;
+        resolve();
+      }
+      return;
+    }
     try {
       chrome.contextMenus.create(props, () => {
-        // Consomme toute erreur asynchrone (duplicate id, parent manquant, etc.)
-        void chrome.runtime.lastError;
+        if (chrome.runtime.lastError) {
+          // Si Chrome dit duplicate, on enregistre quand même comme "vu" et on tente l'update
+          if (/duplicate id/i.test(chrome.runtime.lastError.message || "")) {
+            createdMenuIds.add(props.id);
+            const updateProps = { ...props };
+            delete updateProps.id;
+            delete updateProps.parentId;
+            try {
+              chrome.contextMenus.update(props.id, updateProps, () => {
+                void chrome.runtime.lastError;
+                resolve();
+              });
+              return;
+            } catch (_e) { /* fallthrough */ }
+          }
+          void chrome.runtime.lastError;
+        } else {
+          createdMenuIds.add(props.id);
+        }
         resolve();
       });
     } catch (_e) {
-      // Exception synchrone (ex: duplicate id) — on l'ignore et on continue
       void chrome.runtime.lastError;
+      // Si la création synchrone a levé, marquer comme existant et tenter update au prochain coup
+      createdMenuIds.add(props.id);
       resolve();
     }
   });
@@ -92,19 +130,14 @@ async function _buildMenus() {
     customMenuItems: []
   });
 
-  // 1) removeAll DEUX FOIS pour vider la registry persistée par Chrome au réveil du SW
+  // Vider proprement et réinitialiser notre registre
   await new Promise(resolve => chrome.contextMenus.removeAll(() => {
     void chrome.runtime.lastError;
-    resolve();
-  }));
-  // 2) Petit yield pour laisser Chrome propager la suppression
-  await new Promise(r => setTimeout(r, 50));
-  await new Promise(resolve => chrome.contextMenus.removeAll(() => {
-    void chrome.runtime.lastError;
+    createdMenuIds.clear();
     resolve();
   }));
 
-  await safeCreate({
+  await createOrUpdateMenu({
     id: "assistant_medecin_root",
     title: "Dachi",
     contexts: ["selection"]
@@ -114,7 +147,7 @@ async function _buildMenus() {
   for (const item of MENU_ITEMS) {
     const ov = menuOverrides[item.id] || {};
     if (ov.enabled === false) continue;
-    await safeCreate({
+    await createOrUpdateMenu({
       id: item.id,
       parentId: "assistant_medecin_root",
       title: ov.title || item.title,
@@ -125,7 +158,7 @@ async function _buildMenus() {
   // Items personnalisés
   for (const item of (customMenuItems || [])) {
     if (item.enabled === false) continue;
-    await safeCreate({
+    await createOrUpdateMenu({
       id: item.id,
       parentId: "assistant_medecin_root",
       title: item.title,

@@ -68,16 +68,30 @@ function buildMenus() {
   return buildMenusPromise;
 }
 
+// Helper : create avec callback qui consomme lastError (évite les erreurs duplicate id)
+function safeCreate(props) {
+  return new Promise(resolve => {
+    chrome.contextMenus.create(props, () => {
+      // Consomme toute erreur (duplicate id, parent manquant, etc.)
+      void chrome.runtime.lastError;
+      resolve();
+    });
+  });
+}
+
 async function _buildMenus() {
   const { menuOverrides, customMenuItems } = await chrome.storage.sync.get({
     menuOverrides: {},
     customMenuItems: []
   });
 
-  // Envelopper removeAll dans un vrai callback pour garantir l'attente
-  await new Promise(resolve => chrome.contextMenus.removeAll(resolve));
+  // Supprimer tous les items et attendre réellement la fin
+  await new Promise(resolve => chrome.contextMenus.removeAll(() => {
+    void chrome.runtime.lastError;
+    resolve();
+  }));
 
-  chrome.contextMenus.create({
+  await safeCreate({
     id: "assistant_medecin_root",
     title: "Dachi",
     contexts: ["selection"]
@@ -86,8 +100,8 @@ async function _buildMenus() {
   // Items par défaut (avec éventuels overrides)
   for (const item of MENU_ITEMS) {
     const ov = menuOverrides[item.id] || {};
-    if (ov.enabled === false) continue; // désactivé par l'utilisateur
-    chrome.contextMenus.create({
+    if (ov.enabled === false) continue;
+    await safeCreate({
       id: item.id,
       parentId: "assistant_medecin_root",
       title: ov.title || item.title,
@@ -98,7 +112,7 @@ async function _buildMenus() {
   // Items personnalisés
   for (const item of (customMenuItems || [])) {
     if (item.enabled === false) continue;
-    chrome.contextMenus.create({
+    await safeCreate({
       id: item.id,
       parentId: "assistant_medecin_root",
       title: item.title,

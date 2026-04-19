@@ -335,15 +335,17 @@ async function callScaleway(options, messages) {
   if (!options.scalewayProjectId) throw new Error("NO_PROJECT_ID_SCALEWAY");
   if (!options.scalewayModel) throw new Error("NO_MODEL_SCALEWAY");
 
+  // qwen (raisonnement) a besoin de plus de tokens pour penser + répondre
+  const isReasoning = /^qwen/i.test(options.scalewayModel);
   const body = {
     model: options.scalewayModel,
     temperature: options.temperature,
-    max_tokens: 4000,
-    messages: messages
+    max_tokens: isReasoning ? 4000 : 1500,
+    messages: messages,
+    stream: false
   };
 
-  // Réglages spécifiques aux modèles de raisonnement (qwen3.5)
-  if (/^qwen/i.test(options.scalewayModel)) {
+  if (isReasoning) {
     body.reasoning_effort = "low";
     body.response_format = { type: "text" };
   }

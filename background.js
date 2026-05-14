@@ -272,7 +272,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       id: defaultItem.id,
       title: ov.title || defaultItem.title,
       prompt: ov.prompt || defaultItem.prompt,
-      examples: defaultItem.examples || []
+      // Si l'utilisateur a personnalisé des exemples via l'UI, on les utilise ;
+      // sinon, on retombe sur les exemples par défaut codés en dur.
+      examples: Array.isArray(ov.examples) ? ov.examples : (defaultItem.examples || [])
     };
   } else {
     menuItem = (customMenuItems || []).find(m => m.id === menuId);

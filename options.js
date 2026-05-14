@@ -365,17 +365,18 @@
       const enabled = ov.enabled !== false;
       const title = ov.title || item.title;
       const prompt = ov.prompt || item.prompt;
-      menuList.appendChild(buildRow({ id: item.id, title, prompt, enabled, isDefault: true }));
+      const examples = Array.isArray(ov.examples) ? ov.examples : (item.examples || []);
+      menuList.appendChild(buildRow({ id: item.id, title, prompt, examples, enabled, isDefault: true }));
     }
 
     // Custom
     for (const item of customMenuItems) {
-      menuList.appendChild(buildRow({ ...item, isDefault: false }));
+      menuList.appendChild(buildRow({ ...item, examples: item.examples || [], isDefault: false }));
     }
   }
 
   // Construire une ligne item
-  function buildRow({ id, title, prompt, enabled, isDefault }) {
+  function buildRow({ id, title, prompt, examples, enabled, isDefault }) {
     const wrapper = document.createElement("div");
 
     const row = document.createElement("div");
@@ -488,6 +489,86 @@
     promptTextarea.rows = 6;
     promptTextarea.placeholder = "Instruction envoyée à l'IA...";
 
+    // ─── Section Exemples (few-shot) ────────────────────────────────
+    const examplesHeader = document.createElement("label");
+    examplesHeader.textContent = "Exemples (few-shot)";
+    examplesHeader.style.marginTop = "16px";
+
+    const examplesHelp = document.createElement("p");
+    examplesHelp.className = "api-help";
+    examplesHelp.innerHTML = "Montrez à l'IA 2 à 4 paires <strong>entrée → sortie attendue</strong>. Cela force le modèle à imiter EXACTEMENT votre format de sortie, et empêche toute dérive. Très efficace avec les modèles open-source (Mistral, GPT-OSS).";
+
+    const examplesList = document.createElement("div");
+    examplesList.className = "examples-list";
+
+    // État local des exemples
+    const localExamples = Array.isArray(examples) ? examples.map(e => ({ input: e.input || "", output: e.output || "" })) : [];
+
+    function renderExamples() {
+      examplesList.innerHTML = "";
+      if (localExamples.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "api-help";
+        empty.style.fontStyle = "italic";
+        empty.textContent = "Aucun exemple pour le moment.";
+        examplesList.appendChild(empty);
+      }
+      localExamples.forEach((ex, idx) => {
+        const card = document.createElement("div");
+        card.className = "example-card";
+
+        const cardHeader = document.createElement("div");
+        cardHeader.className = "example-card-header";
+        const num = document.createElement("strong");
+        num.textContent = `Exemple ${idx + 1}`;
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "icon-btn danger";
+        removeBtn.title = "Supprimer cet exemple";
+        removeBtn.textContent = "🗑️";
+        removeBtn.addEventListener("click", () => {
+          localExamples.splice(idx, 1);
+          renderExamples();
+        });
+        cardHeader.appendChild(num);
+        cardHeader.appendChild(removeBtn);
+
+        const inputLabel = document.createElement("label");
+        inputLabel.textContent = "Entrée";
+        const inputArea = document.createElement("textarea");
+        inputArea.value = ex.input;
+        inputArea.rows = 2;
+        inputArea.placeholder = "Texte d'exemple en entrée";
+        inputArea.addEventListener("input", () => { localExamples[idx].input = inputArea.value; });
+
+        const outputLabel = document.createElement("label");
+        outputLabel.textContent = "Sortie attendue";
+        const outputArea = document.createElement("textarea");
+        outputArea.value = ex.output;
+        outputArea.rows = 3;
+        outputArea.placeholder = "Sortie idéale attendue pour cette entrée";
+        outputArea.addEventListener("input", () => { localExamples[idx].output = outputArea.value; });
+
+        card.appendChild(cardHeader);
+        card.appendChild(inputLabel);
+        card.appendChild(inputArea);
+        card.appendChild(outputLabel);
+        card.appendChild(outputArea);
+        examplesList.appendChild(card);
+      });
+    }
+    renderExamples();
+
+    const addExampleBtn = document.createElement("button");
+    addExampleBtn.type = "button";
+    addExampleBtn.className = "btn-sm btn-sm-ghost";
+    addExampleBtn.style.marginTop = "8px";
+    addExampleBtn.textContent = "➕ Ajouter un exemple";
+    addExampleBtn.addEventListener("click", () => {
+      localExamples.push({ input: "", output: "" });
+      renderExamples();
+    });
+
     const panelActions = document.createElement("div");
     panelActions.className = "edit-panel-actions";
 
@@ -509,11 +590,25 @@
       const newPrompt = promptTextarea.value.trim();
       if (!newTitle || !newPrompt) { alert("Le titre et le prompt sont obligatoires."); return; }
 
+      // Filtrer les exemples : ne garder que ceux qui ont entrée ET sortie
+      const cleanedExamples = localExamples
+        .map(e => ({ input: (e.input || "").trim(), output: (e.output || "").trim() }))
+        .filter(e => e.input && e.output);
+
       if (isDefault) {
-        menuOverrides[id] = { ...(menuOverrides[id] || {}), title: newTitle, prompt: newPrompt };
+        menuOverrides[id] = {
+          ...(menuOverrides[id] || {}),
+          title: newTitle,
+          prompt: newPrompt,
+          examples: cleanedExamples
+        };
       } else {
         const idx = customMenuItems.findIndex(m => m.id === id);
-        if (idx >= 0) { customMenuItems[idx].title = newTitle; customMenuItems[idx].prompt = newPrompt; }
+        if (idx >= 0) {
+          customMenuItems[idx].title = newTitle;
+          customMenuItems[idx].prompt = newPrompt;
+          customMenuItems[idx].examples = cleanedExamples;
+        }
       }
       saveMenuState(() => {
         editPanel.classList.remove("open");
@@ -529,6 +624,10 @@
     inner.appendChild(titleInput);
     inner.appendChild(promptLabel);
     inner.appendChild(promptTextarea);
+    inner.appendChild(examplesHeader);
+    inner.appendChild(examplesHelp);
+    inner.appendChild(examplesList);
+    inner.appendChild(addExampleBtn);
     inner.appendChild(panelActions);
     editPanel.appendChild(inner);
 

@@ -776,6 +776,50 @@
       display: flex;
       gap: 8px;
       justify-content: flex-end;
+      margin-top: 12px;
+    }
+
+    /* ─── Examples (few-shot) editor ─────────────────────────── */
+    .examples-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 6px 0 0;
+    }
+
+    .example-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      background: var(--surface-alt);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .example-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .example-card-header strong {
+      font-size: 13px;
+      color: var(--primary);
+    }
+
+    .example-card textarea {
+      min-height: 38px !important;
+      font-size: 13px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .example-card label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 2px;
     }
 
     .btn-sm {

@@ -280,12 +280,25 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   if (!menuItem) return;
 
+  // Helper : envoie un message au content script sans jamais lever d'exception
+  // (la promesse retournée par sendMessage rejette si le receveur n'écoute pas,
+  // p. ex. page restreinte chrome://, page non rechargée après update extension,
+  // ou content script pas encore initialisé). On consomme silencieusement.
+  const safeSend = (msg) => {
+    try {
+      const p = chrome.tabs.sendMessage(tab.id, msg);
+      if (p && typeof p.catch === "function") {
+        p.catch(() => { /* receveur absent : on ignore */ });
+      }
+    } catch (_e) { /* ignore */ }
+  };
+
   try {
     // Injecter le CSS puis le JS dans l'onglet actif
     await chrome.scripting.insertCSS({
       target: { tabId: tab.id },
       files: ["content.css"]
-    });
+    }).catch(() => {});
 
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -293,10 +306,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     });
 
     // Petite pause pour laisser le content script s'initialiser
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => setTimeout(r, 150));
 
     // Envoyer le message au content script pour afficher le loader
-    chrome.tabs.sendMessage(tab.id, {
+    safeSend({
       action: menuItem.id,
       title: menuItem.title,
       text: info.selectionText,
@@ -307,7 +320,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     const { result, anonymization } = await callAI(menuItem.prompt, info.selectionText, menuItem.examples);
 
     // Envoyer la réponse au content script
-    chrome.tabs.sendMessage(tab.id, {
+    safeSend({
       action: menuItem.id,
       title: menuItem.title,
       text: info.selectionText,
@@ -318,7 +331,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   } catch (error) {
     // Envoyer l'erreur au content script
-    chrome.tabs.sendMessage(tab.id, {
+    safeSend({
       action: menuItem.id,
       title: menuItem.title,
       phase: "error",

@@ -779,6 +779,43 @@
       margin-top: 12px;
     }
 
+    /* ─── Layout 2 colonnes du panneau d'édition ─────────────── */
+    .edit-two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-top: 8px;
+    }
+
+    .edit-col {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .edit-col textarea {
+      width: 100%;
+      box-sizing: border-box;
+      resize: vertical;
+    }
+
+    /* Sur petits écrans : repasser en 1 colonne */
+    @media (max-width: 900px) {
+      .edit-two-col {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Élargir le panneau d'édition pour gérer 2 colonnes */
+    .edit-panel.open {
+      max-height: 1400px;
+    }
+
+    .edit-panel-inner {
+      max-width: 100%;
+    }
+
     /* ─── Examples (few-shot) editor ─────────────────────────── */
     .examples-list {
       display: flex;

@@ -481,22 +481,38 @@
     titleInput.value = title;
     titleInput.placeholder = "Ex: ✏️ Mon action";
 
-    // Prompt
+    // ─── Layout 2 colonnes : prompt à gauche, exemples à droite ──────
+    const twoCol = document.createElement("div");
+    twoCol.className = "edit-two-col";
+
+    const leftCol = document.createElement("div");
+    leftCol.className = "edit-col";
+
+    const rightCol = document.createElement("div");
+    rightCol.className = "edit-col";
+
+    // ── Colonne gauche : prompt système ──
     const promptLabel = document.createElement("label");
     promptLabel.textContent = "Prompt système";
+    const promptHelp = document.createElement("p");
+    promptHelp.className = "api-help";
+    promptHelp.textContent = "Instruction de rôle envoyée à l'IA. Sois précis et liste les interdictions.";
     const promptTextarea = document.createElement("textarea");
     promptTextarea.value = prompt;
-    promptTextarea.rows = 6;
-    promptTextarea.placeholder = "Instruction envoyée à l'IA...";
+    promptTextarea.rows = 14;
+    promptTextarea.placeholder = "Tu es un assistant qui ...";
 
-    // ─── Section Exemples (few-shot) ────────────────────────────────
+    leftCol.appendChild(promptLabel);
+    leftCol.appendChild(promptHelp);
+    leftCol.appendChild(promptTextarea);
+
+    // ── Colonne droite : exemples (few-shot) ──
     const examplesHeader = document.createElement("label");
     examplesHeader.textContent = "Exemples (few-shot)";
-    examplesHeader.style.marginTop = "16px";
 
     const examplesHelp = document.createElement("p");
     examplesHelp.className = "api-help";
-    examplesHelp.innerHTML = "Montrez à l'IA 2 à 4 paires <strong>entrée → sortie attendue</strong>. Cela force le modèle à imiter EXACTEMENT votre format de sortie, et empêche toute dérive. Très efficace avec les modèles open-source (Mistral, GPT-OSS).";
+    examplesHelp.innerHTML = "Montrez à l'IA 2 à 4 paires <strong>entrée → sortie attendue</strong>. Cela force le modèle à imiter EXACTEMENT votre format de sortie. Très efficace avec Mistral / GPT-OSS.";
 
     const examplesList = document.createElement("div");
     examplesList.className = "examples-list";
@@ -620,14 +636,19 @@
 
     panelActions.appendChild(cancelBtn2);
     panelActions.appendChild(saveBtn2);
+
+    // Assemblage des colonnes
+    rightCol.appendChild(examplesHeader);
+    rightCol.appendChild(examplesHelp);
+    rightCol.appendChild(examplesList);
+    rightCol.appendChild(addExampleBtn);
+
+    twoCol.appendChild(leftCol);
+    twoCol.appendChild(rightCol);
+
     inner.appendChild(titleLabel);
     inner.appendChild(titleInput);
-    inner.appendChild(promptLabel);
-    inner.appendChild(promptTextarea);
-    inner.appendChild(examplesHeader);
-    inner.appendChild(examplesHelp);
-    inner.appendChild(examplesList);
-    inner.appendChild(addExampleBtn);
+    inner.appendChild(twoCol);
     inner.appendChild(panelActions);
     editPanel.appendChild(inner);
 

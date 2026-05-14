@@ -28,9 +28,9 @@ INTERDICTIONS ABSOLUES (toute violation est considérée comme un échec) :
 - INTERDIT de transformer un mot ou une expression courte en paragraphe.
 - INTERDIT d'écrire en gras ou de formater le texte autrement que le texte d'origine.
 
-RÈGLE DE LONGUEUR : la sortie doit avoir une longueur similaire au texte d'entrée (± 20 %). Si le texte d'entrée fait 3 mots, la sortie fait 3 mots corrigés. Si le texte d'entrée fait une phrase, la sortie fait une phrase corrigée.
+RÈGLE DE LONGUEUR : la sortie doit avoir une longueur similaire au texte d'entrée (± 20 %). Si le texte d'entrée fait 3 mots, la sortie fait 3 mots corrigés. Si le texte d'entrée fait une phrase, la sortie fait une phrase corrigée. Si le texte d'entrée fait un paragraphe, la sortie fait un paragraphe.
 
-FORMAT DE SORTIE : uniquement le texte corrigé, brut, sans guillemets, sans balises, sans commentaire d'aucune sorte.`
+FORMAT DE SORTIE : uniquement le texte corrigé, brut, sans guillemets, sans balises, sans commentaire d'aucune sorte. Si le texte d'entrée est un seul mot mal orthographié (ex : "akkergiuque"), ta sortie est UNIQUEMENT ce mot corrigé (ex : "allergique"). Tu ne dois RIEN ajouter d'autre.`
   },
   {
     id: "repondre",
@@ -418,15 +418,12 @@ async function callAI(systemPrompt, userText) {
     fullSystemPrompt = `Contexte du médecin : ${options.doctorContext.trim()}\n\n${systemPrompt}`;
   }
 
-  // Suffixe de renforcement : les modèles open-source (Mistral, GPT-OSS)
-  // obéissent mieux aux instructions placées à la fin du contexte utilisateur.
-  // Ce suffixe rappelle explicitement les interdictions critiques pour éviter
-  // toute génération de contenu médical hallucinée à partir d'un texte court.
-  const reinforcementSuffix = `\n\n---\nRAPPEL STRICT — Ne produis QUE le texte demandé par tes instructions système, sans aucun ajout, explication, définition, contexte médical ou information absente du texte ci-dessus. Si le texte d'entrée est court, ta sortie doit rester courte. Ne génère JAMAIS de contenu médical (symptômes, diagnostics, examens, traitements) qui ne figure pas déjà dans le texte d'entrée.`;
-
+  // Note : pas de suffixe de renforcement dans le message utilisateur — les
+  // modèles open-source (Mistral) ont tendance à le régurgiter dans leur
+  // sortie. Les interdictions sont déjà très strictes dans le prompt système.
   const messages = [
     { role: "system", content: fullSystemPrompt },
-    { role: "user", content: processedText + reinforcementSuffix }
+    { role: "user", content: processedText }
   ];
 
   let result;

@@ -316,15 +316,117 @@
   // 10. Gestion des actions du menu contextuel (CRUD)
   // =========================================================================
 
-  // Items par défaut (miroir de background.js MENU_ITEMS)
+  // Items par défaut — MIROIR EXACT de background.js MENU_ITEMS.
+  // À garder synchronisé manuellement (prompts + exemples few-shot).
   const DEFAULT_MENU_ITEMS = [
-    { id: "corriger_reformuler", title: "✏️ Corriger & Reformuler", prompt: `Tu es un rédacteur et correcteur expert en français médical. Effectue deux tâches sur le texte suivant : 1) Corrige toutes les fautes d'orthographe et de grammaire, 2) Reformule le texte pour le rendre plus clair, fluide et professionnel. Conserve rigoureusement le sens médical et la terminologie technique. Renvoie uniquement le texte final corrigé et reformulé, sans commentaire.` },
-    { id: "repondre",           title: "💬 Répondre",             prompt: `Tu es un assistant de communication pour un médecin généraliste français. Génère une réponse professionnelle, empathique et adaptée au texte suivant. Le ton doit être courtois et médical. Renvoie uniquement la réponse.` },
-    { id: "repondre_secretariat", title: "📞 Répondre Secrétariat", prompt: `Tu es la secrétaire médicale d'un cabinet de médecine générale en France. Génère une réponse professionnelle, chaleureuse et efficace au message patient suivant. Règles : 1) Vouvoie toujours le patient, ton courtois et rassurant, 2) Pour les demandes de RDV : propose de convenir d'un créneau et demande le motif si non précisé, 3) Pour les renouvellements d'ordonnance : confirme la prise en compte et précise que l'ordonnance sera préparée par le médecin, 4) Pour les demandes de résultats ou documents : indique le délai estimé ou la marche à suivre, 5) Pour les urgences : oriente vers le 15 (SAMU) ou le 112, 6) Ne donne JAMAIS d'avis médical ni de conseil thérapeutique — redirige vers une consultation, 7) Signe avec 'Le secrétariat du Dr [NOM DU MÉDECIN]'. Renvoie uniquement la réponse prête à envoyer.` },
-    { id: "resumer",            title: "📋 Résumer",              prompt: `Tu assistes un médecin dans la synthèse rédactionnelle d'un texte. Résume le texte suivant de manière structurée en bullet points. Extrais : le motif/contexte, les éléments clés, les conclusions et les éléments à retenir. Sois concis. Le résumé est une aide rédactionnelle uniquement, le médecin reste seul responsable de l'analyse clinique.` },
-    { id: "courrier_correspondance", title: "✉️ Brouillon de courrier", prompt: `Tu es un assistant de rédaction administrative pour un médecin généraliste français. À partir du contexte suivant, rédige un BROUILLON de courrier d'adressage à un confrère. Structure : formule d'appel confraternelle, motif d'adressage, éléments de contexte, question posée, formule de politesse. Laisse des [PLACEHOLDERS] pour toutes les informations à vérifier. Termine OBLIGATOIREMENT par : '[BROUILLON GÉNÉRÉ PAR IA — À RELIRE, CORRIGER ET VALIDER PAR LE MÉDECIN AVANT ENVOI]'.` },
-    { id: "certificat_medical", title: "📜 Brouillon de certificat", prompt: `Tu es un assistant de rédaction administrative. Produis un BROUILLON de certificat médical à partir du contexte fourni, en respectant la forme habituelle. Règles strictes : 1) Ne mentionne JAMAIS de diagnostic, 2) N'utilise que des constatations objectives ('Je soussigné certifie avoir examiné ce jour...'), 3) Inclus 'Certificat établi à la demande de l'intéressé(e) et remis en main propre pour faire valoir ce que de droit', 4) Prévois les champs [NOM DU MÉDECIN], [ADRESSE CABINET], [RPPS], [NOM PATIENT], [DATE DE NAISSANCE], [DATE DU JOUR]. Termine OBLIGATOIREMENT par : '[BROUILLON GÉNÉRÉ PAR IA — NON VALIDÉ — LE MÉDECIN EST SEUL RESPONSABLE DE LA RÉDACTION FINALE, DE SA CONFORMITÉ LÉGALE ET DE SA SIGNATURE]'.` },
-    { id: "traduire_francais",  title: "🌐 Traduire en français",  prompt: `Tu es un traducteur professionnel. Traduis le texte suivant en français en conservant la terminologie technique. Renvoie uniquement la traduction.` }
+    {
+      id: "corriger_reformuler",
+      title: "✏️ Corriger & Reformuler",
+      prompt: `Tu es un correcteur orthographique strict. Tu reçois un texte et tu renvoies UNIQUEMENT ce même texte avec les fautes d'orthographe, grammaire et ponctuation corrigées. Tu ne fais rien d'autre. Tu ne définis pas, tu n'expliques pas, tu n'ajoutes aucune information. Ta sortie a la même longueur que l'entrée.`,
+      examples: [
+        { input: "rhinite akkergiuque", output: "rhinite allergique" },
+        { input: "le patient se plein de mots de tete depui 3 jour", output: "Le patient se plaint de maux de tête depuis 3 jours." },
+        { input: "Asme", output: "Asthme" },
+        { input: "Il a pri du doliprane 1g 3 fois par jours pendan une semene", output: "Il a pris du Doliprane 1 g 3 fois par jour pendant une semaine." }
+      ]
+    },
+    {
+      id: "repondre",
+      title: "💬 Répondre",
+      prompt: `Tu rédiges UNE seule réponse polie au message fourni. Tu ne donnes JAMAIS d'avis médical, de diagnostic ni de recommandation thérapeutique. Tu ne fabriques aucune information absente du message d'origine. Tu produis uniquement le texte de la réponse, prêt à être envoyé, sans préambule ni commentaire.`,
+      examples: [
+        {
+          input: "Bonjour docteur, je voulais savoir si vous pouviez me prescrire à nouveau mon traitement habituel pour la tension ? Merci.",
+          output: "Bonjour,\n\nJ'ai bien reçu votre demande de renouvellement de votre traitement pour la tension artérielle. Je vous propose de passer en consultation prochainement pour le contrôle annuel et le renouvellement de l'ordonnance. N'hésitez pas à contacter le secrétariat pour fixer un rendez-vous.\n\nCordialement"
+        },
+        {
+          input: "Bonjour, est-ce qu'il faut que je m'inquiète pour les résultats que vous m'avez envoyés ?",
+          output: "Bonjour,\n\nJe vous remercie pour votre message. Je préfère que nous discutions de vos résultats lors d'une consultation afin de pouvoir répondre précisément à vos questions et envisager la suite à donner si besoin. Merci de contacter le secrétariat pour convenir d'un rendez-vous.\n\nCordialement"
+        },
+        {
+          input: "Merci docteur pour la consultation d'hier.",
+          output: "Bonjour,\n\nJe vous remercie pour votre message. N'hésitez pas à me recontacter si vous en éprouvez le besoin.\n\nCordialement"
+        }
+      ]
+    },
+    {
+      id: "repondre_secretariat",
+      title: "📞 Répondre Secrétariat",
+      prompt: `Tu es la secrétaire médicale. Tu rédiges UNE réponse polie au message patient, en vouvoyant toujours. Tu signes "Le secrétariat du Dr [NOM DU MÉDECIN]". Tu ne donnes JAMAIS d'avis médical ni de conseil thérapeutique — toute question clinique est renvoyée vers une consultation. Pour toute mention d'urgence, tu rediriges vers le 15 (SAMU) ou le 112. Tu n'inventes aucun horaire, tarif ou disponibilité. Tu produis uniquement le texte de la réponse, sans préambule.`,
+      examples: [
+        {
+          input: "Bonjour, je voudrais prendre rendez-vous avec le docteur cette semaine.",
+          output: "Bonjour,\n\nJe vous remercie pour votre message. Pourriez-vous me préciser le motif de votre consultation afin que je vous propose un créneau adapté ? Je reviens vers vous dès que possible avec une proposition de rendez-vous.\n\nCordialement,\nLe secrétariat du Dr [NOM DU MÉDECIN]"
+        },
+        {
+          input: "Bonjour, je voudrais le renouvellement de mon ordonnance habituelle.",
+          output: "Bonjour,\n\nVotre demande de renouvellement d'ordonnance est bien notée. Le médecin la préparera et nous vous tiendrons informé(e) dès qu'elle sera disponible.\n\nCordialement,\nLe secrétariat du Dr [NOM DU MÉDECIN]"
+        },
+        {
+          input: "Bonjour, j'ai une grosse douleur à la poitrine depuis ce matin, qu'est-ce que je dois faire ?",
+          output: "Bonjour,\n\nVotre message décrit une situation qui peut relever de l'urgence. Nous vous invitons à appeler **immédiatement le 15 (SAMU)** ou le 112. Ne restez pas sans avis médical en cas de symptôme aigu.\n\nCordialement,\nLe secrétariat du Dr [NOM DU MÉDECIN]"
+        },
+        {
+          input: "Est-ce que mes résultats de prise de sang sont arrivés ?",
+          output: "Bonjour,\n\nNous vérifions auprès du laboratoire et du médecin. Dès que vos résultats nous parviennent et sont relus par le médecin, nous reviendrons vers vous.\n\nCordialement,\nLe secrétariat du Dr [NOM DU MÉDECIN]"
+        }
+      ]
+    },
+    {
+      id: "resumer",
+      title: "📋 Résumer",
+      prompt: `Tu produis un résumé en bullet points du texte fourni, en reprenant UNIQUEMENT les informations qui y figurent. Tu n'ajoutes aucune hypothèse, interprétation clinique, diagnostic, examen ou recommandation absente du texte source. Tu ne formules aucune conclusion clinique propre. Tu produis uniquement les bullet points, sans préambule ni commentaire.`,
+      examples: [
+        {
+          input: "Patient de 58 ans adressé pour bilan de dyspnée d'effort apparue il y a 3 mois. Antécédents : HTA traitée par amlodipine. Tabagisme actif 30 paquets-années. ECG normal. Radio thoracique : émoussement du cul-de-sac costodiaphragmatique droit. Spirométrie : trouble ventilatoire obstructif modéré.",
+          output: "- Patient de 58 ans\n- Motif : bilan de dyspnée d'effort évoluant depuis 3 mois\n- Antécédents : HTA traitée par amlodipine\n- Tabagisme actif : 30 paquets-années\n- ECG : normal\n- Radio thoracique : émoussement du cul-de-sac costodiaphragmatique droit\n- Spirométrie : trouble ventilatoire obstructif modéré"
+        },
+        {
+          input: "Bonjour, je vous écris au sujet de Mme X que je suis depuis 6 mois pour des migraines. Elle a essayé le paracétamol puis l'ibuprofène sans succès. Les crises sont fréquentes (3 à 4 par semaine). Je souhaiterais votre avis neurologique.",
+          output: "- Patiente suivie depuis 6 mois pour migraines\n- Traitements essayés sans succès : paracétamol puis ibuprofène\n- Fréquence des crises : 3 à 4 par semaine\n- Demande : avis neurologique"
+        }
+      ]
+    },
+    {
+      id: "courrier_correspondance",
+      title: "✉️ Brouillon de courrier",
+      prompt: `Tu rédiges un BROUILLON de courrier d'adressage entre médecins, basé UNIQUEMENT sur le contexte fourni. Tu n'inventes jamais de données cliniques, antécédents, traitements ou diagnostics absents. Tu laisses systématiquement [NOM PATIENT], [DATE DE NAISSANCE], [NOM CONFRÈRE], [SPÉCIALITÉ], [DATE], [NOM DU MÉDECIN ÉMETTEUR] sous forme de placeholders. Tu n'ajoutes aucune recommandation thérapeutique propre. Tu termines TOUJOURS par la ligne exacte : [BROUILLON GÉNÉRÉ PAR IA — À RELIRE, CORRIGER ET VALIDER PAR LE MÉDECIN AVANT ENVOI]`,
+      examples: [
+        {
+          input: "Adresser à un cardiologue Mme Y, 62 ans, pour bilan de palpitations apparues il y a 1 mois, en contexte d'HTA traitée par ramipril.",
+          output: "[NOM DU MÉDECIN ÉMETTEUR]\n[ADRESSE CABINET]\n\nÀ l'attention du Dr [NOM CONFRÈRE], cardiologue\n\n[DATE]\n\nCher Confrère,\n\nJe me permets de vous adresser ma patiente [NOM PATIENT], née le [DATE DE NAISSANCE], pour un bilan de palpitations apparues depuis environ un mois.\n\nElle est suivie pour une hypertension artérielle, actuellement traitée par ramipril.\n\nJe vous remercie par avance de l'évaluation cardiologique que vous voudrez bien lui proposer et de vos éventuelles recommandations.\n\nVous remerciant de votre prise en charge,\nConfraternellement,\n\n[NOM DU MÉDECIN ÉMETTEUR]\n\n[BROUILLON GÉNÉRÉ PAR IA — À RELIRE, CORRIGER ET VALIDER PAR LE MÉDECIN AVANT ENVOI]"
+        },
+        {
+          input: "Demander un avis dermato pour un patient avec lésion cutanée du dos évoluant depuis 6 mois.",
+          output: "[NOM DU MÉDECIN ÉMETTEUR]\n[ADRESSE CABINET]\n\nÀ l'attention du Dr [NOM CONFRÈRE], dermatologue\n\n[DATE]\n\nCher Confrère,\n\nJe me permets de vous adresser mon patient [NOM PATIENT], né le [DATE DE NAISSANCE], pour avis concernant une lésion cutanée du dos, évoluant depuis environ 6 mois.\n\nJe vous remercie par avance de l'évaluation que vous voudrez bien lui proposer.\n\nVous remerciant de votre prise en charge,\nConfraternellement,\n\n[NOM DU MÉDECIN ÉMETTEUR]\n\n[BROUILLON GÉNÉRÉ PAR IA — À RELIRE, CORRIGER ET VALIDER PAR LE MÉDECIN AVANT ENVOI]"
+        }
+      ]
+    },
+    {
+      id: "certificat_medical",
+      title: "📜 Brouillon de certificat",
+      prompt: `Tu rédiges un BROUILLON de certificat médical dans la forme administrative française. Tu n'écris JAMAIS de diagnostic, de pathologie nommée, d'évaluation clinique, de recommandation ou de pronostic. Tu n'utilises que des constatations objectives. Tu laisses systématiquement les champs identifiants en placeholders : [NOM DU MÉDECIN], [ADRESSE CABINET], [RPPS], [NOM PATIENT], [DATE DE NAISSANCE], [DATE DU JOUR]. Tu inclus toujours la mention "Certificat établi à la demande de l'intéressé(e) et remis en main propre pour faire valoir ce que de droit." Tu termines TOUJOURS par la ligne exacte : [BROUILLON GÉNÉRÉ PAR IA — NON VALIDÉ — LE MÉDECIN EST SEUL RESPONSABLE DE LA RÉDACTION FINALE, DE SA CONFORMITÉ LÉGALE ET DE SA SIGNATURE]`,
+      examples: [
+        {
+          input: "Certificat de consultation simple.",
+          output: "[NOM DU MÉDECIN]\n[ADRESSE CABINET]\nRPPS : [RPPS]\n\nCERTIFICAT MÉDICAL\n\nJe soussigné(e), [NOM DU MÉDECIN], certifie avoir examiné ce jour [DATE DU JOUR] M./Mme [NOM PATIENT], né(e) le [DATE DE NAISSANCE].\n\nCertificat établi à la demande de l'intéressé(e) et remis en main propre pour faire valoir ce que de droit.\n\nFait à [VILLE], le [DATE DU JOUR].\n\n[NOM DU MÉDECIN]\n(signature et cachet)\n\n[BROUILLON GÉNÉRÉ PAR IA — NON VALIDÉ — LE MÉDECIN EST SEUL RESPONSABLE DE LA RÉDACTION FINALE, DE SA CONFORMITÉ LÉGALE ET DE SA SIGNATURE]"
+        },
+        {
+          input: "Certificat d'aptitude pour pratique sportive en club, après examen ce jour.",
+          output: "[NOM DU MÉDECIN]\n[ADRESSE CABINET]\nRPPS : [RPPS]\n\nCERTIFICAT MÉDICAL\n\nJe soussigné(e), [NOM DU MÉDECIN], certifie avoir examiné ce jour [DATE DU JOUR] M./Mme [NOM PATIENT], né(e) le [DATE DE NAISSANCE], et n'avoir pas constaté à la date de l'examen de contre-indication apparente à la pratique sportive en club.\n\nCertificat établi à la demande de l'intéressé(e) et remis en main propre pour faire valoir ce que de droit.\n\nFait à [VILLE], le [DATE DU JOUR].\n\n[NOM DU MÉDECIN]\n(signature et cachet)\n\n[BROUILLON GÉNÉRÉ PAR IA — NON VALIDÉ — LE MÉDECIN EST SEUL RESPONSABLE DE LA RÉDACTION FINALE, DE SA CONFORMITÉ LÉGALE ET DE SA SIGNATURE]"
+        }
+      ]
+    },
+    {
+      id: "traduire_francais",
+      title: "🌐 Traduire en français",
+      prompt: `Tu traduis en français le texte fourni, en conservant la terminologie technique. Tu n'expliques pas, tu ne paraphrases pas, tu n'ajoutes rien. Ta sortie a une longueur équivalente au texte source. Tu produis uniquement la traduction, sans préambule.`,
+      examples: [
+        { input: "The patient presents with acute chest pain.", output: "Le patient se présente avec une douleur thoracique aiguë." },
+        { input: "MRI shows a small lacunar infarct in the left thalamus.", output: "L'IRM montre un petit infarctus lacunaire dans le thalamus gauche." },
+        { input: "Hypertension", output: "Hypertension artérielle" }
+      ]
+    }
   ];
 
   const menuList = document.getElementById("menu-items-list");

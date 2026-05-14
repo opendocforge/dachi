@@ -16,21 +16,13 @@ const MENU_ITEMS = [
   {
     id: "corriger_reformuler",
     title: "✏️ Corriger & Reformuler",
-    prompt: `Tu es un correcteur orthographique et grammatical strict pour la langue française.
-
-RÔLE UNIQUE : corriger les fautes d'orthographe, de grammaire, de conjugaison et de ponctuation du texte fourni. Améliorer légèrement la fluidité si nécessaire.
-
-INTERDICTIONS ABSOLUES (toute violation est considérée comme un échec) :
-- INTERDIT d'ajouter la moindre information absente du texte original.
-- INTERDIT d'expliquer, définir, développer, contextualiser ou commenter le contenu.
-- INTERDIT de mentionner des symptômes, des diagnostics, des examens, des traitements, des médicaments, ou toute information médicale qui ne figure pas déjà mot pour mot dans le texte original.
-- INTERDIT d'ajouter une introduction, un titre, des sous-titres, des listes à puces, des notes, ou tout préambule.
-- INTERDIT de transformer un mot ou une expression courte en paragraphe.
-- INTERDIT d'écrire en gras ou de formater le texte autrement que le texte d'origine.
-
-RÈGLE DE LONGUEUR : la sortie doit avoir une longueur similaire au texte d'entrée (± 20 %). Si le texte d'entrée fait 3 mots, la sortie fait 3 mots corrigés. Si le texte d'entrée fait une phrase, la sortie fait une phrase corrigée. Si le texte d'entrée fait un paragraphe, la sortie fait un paragraphe.
-
-FORMAT DE SORTIE : uniquement le texte corrigé, brut, sans guillemets, sans balises, sans commentaire d'aucune sorte. Si le texte d'entrée est un seul mot mal orthographié (ex : "akkergiuque"), ta sortie est UNIQUEMENT ce mot corrigé (ex : "allergique"). Tu ne dois RIEN ajouter d'autre.`
+    prompt: `Tu es un correcteur orthographique strict. Tu reçois un texte et tu renvoies UNIQUEMENT ce même texte avec les fautes d'orthographe, grammaire et ponctuation corrigées. Tu ne fais rien d'autre. Tu ne définis pas, tu n'expliques pas, tu n'ajoutes aucune information. Ta sortie a la même longueur que l'entrée.`,
+    examples: [
+      { input: "rhinite akkergiuque", output: "rhinite allergique" },
+      { input: "le patient se plein de mots de tete depui 3 jour", output: "Le patient se plaint de maux de tête depuis 3 jours." },
+      { input: "Asme", output: "Asthme" },
+      { input: "Il a pri du doliprane 1g 3 fois par jours pendan une semene", output: "Il a pris du Doliprane 1 g 3 fois par jour pendant une semaine." }
+    ]
   },
   {
     id: "repondre",
@@ -279,7 +271,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     menuItem = {
       id: defaultItem.id,
       title: ov.title || defaultItem.title,
-      prompt: ov.prompt || defaultItem.prompt
+      prompt: ov.prompt || defaultItem.prompt,
+      examples: defaultItem.examples || []
     };
   } else {
     menuItem = (customMenuItems || []).find(m => m.id === menuId);
@@ -311,7 +304,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     });
 
     // Appeler l'API via la fonction abstraite (retourne le résultat + infos anonymisation)
-    const { result, anonymization } = await callAI(menuItem.prompt, info.selectionText);
+    const { result, anonymization } = await callAI(menuItem.prompt, info.selectionText, menuItem.examples);
 
     // Envoyer la réponse au content script
     chrome.tabs.sendMessage(tab.id, {
@@ -370,7 +363,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // ---------------------------------------------------------------------------
 // 6. Fonction abstraite callAI — supporte les 3 fournisseurs
 // ---------------------------------------------------------------------------
-async function callAI(systemPrompt, userText) {
+async function callAI(systemPrompt, userText, examples) {
   // Vérifier l'acceptation des CGU avant tout appel API
   const cgu = await chrome.storage.sync.get({ cguAccepted: "" });
   if (cgu.cguAccepted !== "1.0") {
@@ -418,13 +411,23 @@ async function callAI(systemPrompt, userText) {
     fullSystemPrompt = `Contexte du médecin : ${options.doctorContext.trim()}\n\n${systemPrompt}`;
   }
 
-  // Note : pas de suffixe de renforcement dans le message utilisateur — les
-  // modèles open-source (Mistral) ont tendance à le régurgiter dans leur
-  // sortie. Les interdictions sont déjà très strictes dans le prompt système.
+  // Construction des messages avec few-shot examples si présents.
+  // Le few-shot (alternance user/assistant) est la technique la plus fiable
+  // pour contraindre le comportement des modèles open-source (Mistral, GPT-OSS).
   const messages = [
-    { role: "system", content: fullSystemPrompt },
-    { role: "user", content: processedText }
+    { role: "system", content: fullSystemPrompt }
   ];
+
+  if (Array.isArray(examples)) {
+    for (const ex of examples) {
+      if (ex.input && ex.output) {
+        messages.push({ role: "user", content: ex.input });
+        messages.push({ role: "assistant", content: ex.output });
+      }
+    }
+  }
+
+  messages.push({ role: "user", content: processedText });
 
   let result;
   switch (options.provider) {

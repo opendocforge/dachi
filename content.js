@@ -41,6 +41,22 @@
 
     // State
     let lastFocusedEditable = null;
+    // Capture de la sélection au moment du clic droit (fallback robuste)
+    let lastSelectionRange = null;
+
+    // Helper : remonte du nœud passé jusqu'au champ éditable conteneur
+    function findEditableAncestor(node) {
+        let el = node && node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+        while (el && el !== document.body) {
+            if (el.nodeType === Node.ELEMENT_NODE) {
+                if (el.isContentEditable) return el;
+                if (el.tagName === 'TEXTAREA') return el;
+                if (el.tagName === 'INPUT' && ['text','search','url','email',''].includes(el.type)) return el;
+            }
+            el = el.parentElement;
+        }
+        return null;
+    }
 
     // Track last focused editable on the page
     document.addEventListener('focusin', (e) => {
@@ -51,6 +67,31 @@
             lastFocusedEditable = el;
         }
     });
+
+    // Capture au clic droit : la sélection courante + son champ conteneur.
+    // Plus fiable que focusin sur les pages qui ne donnent jamais le focus
+    // (contenteditable activé via JS, ProseMirror, Quill, etc.).
+    document.addEventListener('contextmenu', (e) => {
+        if (e.target && e.target.closest && e.target.closest('#dc-root')) return;
+
+        // 1) Capture du champ éditable depuis l'événement, puis depuis activeElement,
+        //    puis depuis l'ancre de la sélection.
+        let candidate = findEditableAncestor(e.target);
+        if (!candidate && document.activeElement) {
+            candidate = findEditableAncestor(document.activeElement);
+        }
+        const sel = document.getSelection();
+        if (!candidate && sel && sel.anchorNode) {
+            candidate = findEditableAncestor(sel.anchorNode);
+        }
+        if (candidate) lastFocusedEditable = candidate;
+
+        // 2) Capture de la Range (pour pouvoir restaurer précisément la sélection
+        //    dans un champ contenteditable).
+        if (sel && sel.rangeCount > 0) {
+            try { lastSelectionRange = sel.getRangeAt(0).cloneRange(); } catch (_) {}
+        }
+    }, true);
 
     // Build UI
     const root = document.createElement('div');
@@ -254,30 +295,66 @@
         if (!ta || !ta.value) return;
         const text = ta.value;
 
-        if (lastFocusedEditable) {
-            const el = lastFocusedEditable;
-            el.focus();
+        // Strat\u00e9gie d'insertion en cascade :
+        // 1) Champ \u00e9ditable m\u00e9moris\u00e9 (focusin ou contextmenu) \u2192 on ins\u00e8re dedans.
+        // 2) Sinon, range de s\u00e9lection captur\u00e9e \u2192 on restaure et on ins\u00e8re.
+        // 3) Sinon, dernier recours : copier dans le presse-papier.
+
+        const el = lastFocusedEditable;
+        if (el && document.contains(el)) {
+            try { el.focus(); } catch (_) {}
 
             if (el.isContentEditable) {
+                // Restaurer la s\u00e9lection captur\u00e9e AVANT insertion (sinon le curseur
+                // peut \u00eatre \u00e0 la fin du champ et execCommand ins\u00e8re ailleurs)
+                if (lastSelectionRange) {
+                    try {
+                        const sel = window.getSelection();
+                        sel.removeAllRanges();
+                        sel.addRange(lastSelectionRange);
+                    } catch (_) {}
+                }
                 const html = text
                     .split('\n\n')
                     .map(p => p.replace(/\n/g, '<br>'))
                     .join('<br><br>');
-                document.execCommand('insertHTML', false, html);
-            } else if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
-                const start = el.selectionStart || 0;
-                const end = el.selectionEnd || 0;
-                el.value = el.value.substring(0, start) + text + el.value.substring(end);
+                let inserted = false;
+                try { inserted = document.execCommand('insertHTML', false, html); } catch (_) {}
+                // Fallback : insertion via Range si execCommand \u00e9choue (\u00e9diteurs modernes)
+                if (!inserted) {
+                    try {
+                        const sel = window.getSelection();
+                        if (sel && sel.rangeCount > 0) {
+                            const range = sel.getRangeAt(0);
+                            range.deleteContents();
+                            const frag = range.createContextualFragment(html);
+                            range.insertNode(frag);
+                        }
+                    } catch (_) {}
+                }
+                showToast('Texte ins\u00e9r\u00e9 !');
+                closePreview();
+                return;
+            }
+
+            if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+                const start = (typeof el.selectionStart === 'number') ? el.selectionStart : el.value.length;
+                const end   = (typeof el.selectionEnd === 'number')   ? el.selectionEnd   : el.value.length;
+                const before = el.value.substring(0, start);
+                const after  = el.value.substring(end);
+                el.value = before + text + after;
                 el.selectionStart = el.selectionEnd = start + text.length;
                 el.dispatchEvent(new Event('input', { bubbles: true }));
                 el.dispatchEvent(new Event('change', { bubbles: true }));
+                showToast('Texte ins\u00e9r\u00e9 !');
+                closePreview();
+                return;
             }
-
-            showToast('Texte ins\u00e9r\u00e9 !');
-            closePreview();
-        } else {
-            doCopy();
         }
+
+        // Aucune cible utilisable \u2192 copier
+        doCopy();
+        showToast('Aucun champ \u00e9ditable d\u00e9tect\u00e9 \u2014 texte copi\u00e9 dans le presse-papier', false);
     }
 
     // Toast

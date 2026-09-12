@@ -171,11 +171,33 @@
 
     shadow.getElementById('dc-close').addEventListener('click', (e) => { if (e.isTrusted) closePreview(); });
 
-    document.addEventListener('keydown', (e) => {
-        if (!overlay.classList.contains('visible')) return;
+    function handleModalKey(e) {
         if (e.key === 'Escape') { e.preventDefault(); closePreview(); return; }
         if (e.key === 'Tab') trapFocus(e);
+    }
+
+    // Échap / Tab quand le focus est resté sur la page (modale ouverte sans champ)
+    document.addEventListener('keydown', (e) => {
+        if (!overlay.classList.contains('visible')) return;
+        handleModalKey(e);
     });
+
+    // ─── Isolation vis-à-vis des gestionnaires globaux de la page hôte ──
+    // Les événements nés dans la modale traversent le Shadow DOM et remontent
+    // jusqu'au document, où la page les voit venir d'un élément inconnu
+    // (« dachi-host »). Certains logiciels métier interceptent alors la frappe
+    // (raccourcis globaux, preventDefault hors de leurs propres champs) et
+    // rien ne s'écrit dans nos champs. On traite Échap / Tab ici puis on
+    // arrête la propagation : la page hôte ne reçoit plus rien.
+    const ISOLATED_EVENTS = ['keydown', 'keyup', 'keypress', 'input', 'beforeinput', 'change',
+        'paste', 'cut', 'copy', 'mousedown', 'click', 'dblclick', 'pointerdown',
+        'focusin', 'focusout', 'wheel', 'contextmenu'];
+    for (const type of ISOLATED_EVENTS) {
+        root.addEventListener(type, (e) => {
+            if (type === 'keydown') handleModalKey(e);
+            e.stopPropagation();
+        });
+    }
 
     makeDraggable(modal, modal.querySelector('.dc-header'));
 

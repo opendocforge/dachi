@@ -235,7 +235,12 @@ async function runGeneration({ tabId, item, request, settings }) {
     item = item || await resolveMenuItem(request.menuId);
     if (!item) throw new Error("API_ERROR: action inconnue");
 
-    safeSend(tabId, { phase: "loading", title: item.title });
+    safeSend(tabId, {
+      phase: "loading",
+      title: item.title,
+      inputChars: (request.text || "").length,
+      isLocal: settings.provider === "local"
+    });
 
     const map = request.map || {};
     const rehydrate = (text) => settings.rehydrateEnabled ? rehydrateText(text, map) : { text, restored: 0 };
@@ -322,6 +327,7 @@ async function providerRequest(settings) {
         model: settings.scalewayModel,
         maxTokens: settings.maxTokens || DEFAULT_SETTINGS.maxTokens,
         timeoutMs: 45000,
+        firstByteTimeoutMs: 90000,
         isLocal: false,
         // Modèles à raisonnement (gpt-oss, *-thinking, magistral) : effort réduit,
         // sinon le budget de réponse part en raisonnement interne.
@@ -342,6 +348,9 @@ async function providerRequest(settings) {
         model: settings.localModel,
         maxTokens: settings.maxTokens || DEFAULT_SETTINGS.maxTokens,
         timeoutMs: 60000,
+        // Un modèle local sur CPU peut mettre plusieurs minutes à lire un long
+        // texte avant d'émettre le premier jeton : délai dédié, plus généreux.
+        firstByteTimeoutMs: 270000,   // sous la limite dure de 5 min par requête du Service Worker
         isLocal: true
       };
     }
@@ -354,6 +363,7 @@ async function providerRequest(settings) {
         model: settings.model || DEFAULT_SETTINGS.model,
         maxTokens: settings.maxTokens || DEFAULT_SETTINGS.maxTokens,
         timeoutMs: 45000,
+        firstByteTimeoutMs: 90000,
         isLocal: false,
         usageInStream: true,
         adaptBody: adaptOpenAIBody
@@ -375,6 +385,7 @@ async function providerRequest(settings) {
         model: openrouterModel,
         maxTokens: settings.maxTokens || DEFAULT_SETTINGS.maxTokens,
         timeoutMs: 60000,
+        firstByteTimeoutMs: 120000,
         isLocal: false,
         // Refuse le routage vers les fournisseurs qui conservent / entraînent sur les données
         extraBody: { provider: { data_collection: "deny" }, reasoning: { effort: "low" } },
@@ -433,10 +444,16 @@ async function callAI(settings, item, request, onChunk) {
  * Appel chat/completions générique (OpenAI-compatible) avec streaming SSE.
  * Le timeout est un timeout d'inactivité : il est réarmé à chaque chunk reçu.
  */
-async function chatCompletion({ url, headers, body, timeoutMs, isLocal, onChunk, usageInStream }) {
+async function chatCompletion({ url, headers, body, timeoutMs, firstByteTimeoutMs, isLocal, onChunk, usageInStream }) {
   const controller = new AbortController();
-  let timer = setTimeout(() => controller.abort(), timeoutMs);
+  // Avant le premier octet : délai « premier jeton » (lecture du prompt) ;
+  // ensuite : délai d'inactivité réarmé à chaque chunk.
+  let timer = setTimeout(() => controller.abort(), firstByteTimeoutMs || timeoutMs);
   const rearm = () => { clearTimeout(timer); timer = setTimeout(() => controller.abort(), timeoutMs); };
+  // Chrome arrête le Service Worker après 30 s sans appel d'API d'extension :
+  // pendant la lecture d'un long prompt (aucun chunk reçu), un appel anodin
+  // toutes les 20 s le maintient en vie. Limite dure : 5 min par requête.
+  const keepAlive = setInterval(() => { try { chrome.runtime.getPlatformInfo().catch(() => {}); } catch (_) {} }, 20000);
   const stream = typeof onChunk === "function";
 
   try {
@@ -490,6 +507,7 @@ async function chatCompletion({ url, headers, body, timeoutMs, isLocal, onChunk,
     throw normalizeFetchError(error, isLocal);
   } finally {
     clearTimeout(timer);
+    clearInterval(keepAlive);
   }
 }
 
@@ -515,6 +533,10 @@ async function throwHttpError(response) {
   const status = response.status;
   const msg = (await readErrorBody(response)).slice(0, 300);
   if (status === 401 || status === 403) throw new Error(`API_KEY_INVALID: HTTP ${status} — ${msg}`);
+  if (status === 400 && /context|too (long|many tokens)|maximum.*(length|tokens)|token limit|exceeds/i.test(msg)) {
+    throw new Error(`CONTEXT_TOO_LONG: HTTP 400 — ${msg}`);
+  }
+  if (status === 413) throw new Error(`CONTEXT_TOO_LONG: HTTP 413 — ${msg}`);
   if (status === 429) throw new Error(`RATE_LIMITED: HTTP 429 — ${msg}`);
   if (status >= 500) throw new Error(`SERVER_ERROR: HTTP ${status} — ${msg}`);
   throw new Error(`API_ERROR: HTTP ${status} — ${msg}`);

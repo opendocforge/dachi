@@ -93,6 +93,8 @@ La table de correspondance ne quitte jamais votre poste : elle sert à **ré-ide
 2. Lancez le serveur (ex: `ollama serve`)
 3. Renseignez l'URL et le nom du modèle
 
+> **Longs textes avec Ollama** : la fenêtre de contexte par défaut est de 4 096 jetons ; au-delà, le début du prompt (les consignes) est tronqué silencieusement. Pour le courrier d'adressage guidé sur un ancien courrier complet, lancez Ollama avec une fenêtre plus large, par exemple `OLLAMA_CONTEXT_LENGTH=16384` (variable d'environnement, puis redémarrez Ollama). Sur un PC sans GPU, la lecture d'un long texte peut prendre plusieurs minutes avant le premier mot : Dachi attend jusqu'à 4 minutes 30.
+
 #### Serveur distant sur réseau privé (LAN, Tailscale, VPN)
 
 Le serveur peut tourner sur une autre machine que celle du cabinet, par exemple un PC à domicile joint via [Tailscale](https://tailscale.com) (chiffrement WireGuard de bout en bout, aucun tiers ne voit le contenu).

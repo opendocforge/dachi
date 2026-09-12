@@ -54,7 +54,8 @@
         CGU_NOT_ACCEPTED:       { icon: '⚖️', title: 'Conditions d\'utilisation à accepter', text: 'Avant la première utilisation, lisez et acceptez les conditions d\'utilisation dans les options.', showOpt: true },
         API_KEY_INVALID:        { icon: '🚫', title: 'Clé API refusée',                 text: 'Votre clé API est rejetée par le fournisseur. Vérifiez-la dans les options.', showOpt: true },
         RATE_LIMITED:           { icon: '⏳', title: 'Limite de requêtes atteinte',     text: 'Trop de requêtes. Réessayez dans quelques instants.' },
-        TIMEOUT:                { icon: '⏱️', title: 'Délai d\'attente dépassé',         text: 'Le fournisseur n\'a pas répondu à temps. Réessayez.' },
+        TIMEOUT:                { icon: '⏱️', title: 'Délai d\'attente dépassé',         text: 'Le modèle n\'a pas répondu à temps. Avec un long texte sur un serveur local sans GPU, la lecture du texte peut prendre plusieurs minutes : réessayez avec une sélection plus courte, ou patientez davantage (Dachi attend jusqu\'à 4 minutes 30 le premier mot d\'un modèle local).' },
+        CONTEXT_TOO_LONG:       { icon: '📏', title: 'Texte trop long pour ce modèle',   text: 'Le texte sélectionné (plus les consignes) dépasse la fenêtre de contexte du modèle. Réduisez la sélection aux passages utiles, ou choisissez un modèle avec un contexte plus large. Avec Ollama, augmentez la fenêtre : OLLAMA_CONTEXT_LENGTH=16384 (défaut 4096).' },
         NETWORK_ERROR:          { icon: '📡', title: 'Erreur de connexion',             text: 'Impossible de joindre le service. Vérifiez votre connexion.' },
         SERVER_ERROR:           { icon: '🔧', title: 'Service indisponible',            text: 'Le fournisseur rencontre des difficultés. Réessayez dans quelques minutes.' },
         API_ERROR:              { icon: '❌', title: 'Erreur du fournisseur',           text: 'Le fournisseur a renvoyé une erreur.' },
@@ -298,16 +299,32 @@
     }
 
     // ─── Vues ────────────────────────────────────────────────────────────
-    function showLoading(title) {
+    let loadingHintTimer = null;
+    function showLoading(title, info) {
         mode = 'loading';
         titleEl.textContent = title;
+        const chars = info && info.inputChars ? info.inputChars : 0;
+        const words = chars ? Math.round(chars / 6) : 0;
+        const size = words ? ` — texte envoyé : ~${words.toLocaleString('fr-FR')} mots` : '';
         bodyEl.innerHTML = `
             <div class="dc-loading">
                 <div class="dc-spinner"></div>
-                <span class="dc-loading-text">Génération en cours…</span>
+                <span class="dc-loading-text">Génération en cours…${size}</span>
+                <span class="dc-loading-hint" hidden></span>
             </div>`;
         setActions();
         openPreview();
+
+        // Après 20 s sans premier mot, on explique l'attente (surtout en local)
+        clearTimeout(loadingHintTimer);
+        const hint = bodyEl.querySelector('.dc-loading-hint');
+        loadingHintTimer = setTimeout(() => {
+            if (mode !== 'loading' || !hint) return;
+            hint.textContent = info && info.isLocal
+                ? 'Le modèle local lit le texte avant de répondre : sur un PC sans GPU, un long courrier peut demander plusieurs minutes. Dachi attend jusqu\'à 4 minutes 30.'
+                : 'Le fournisseur met du temps à répondre (file d\'attente ou modèle à raisonnement). Dachi attend encore un peu.';
+            hint.hidden = false;
+        }, 20000);
     }
 
     /** Questions posées avant la génération (actions qui en déclarent). */
@@ -536,6 +553,9 @@
         box.appendChild(el('h4', null, err.title));
         box.appendChild(el('p', null, err.text));
         if (detail && ERRORS[key]) box.appendChild(el('code', 'dc-error-detail', detail));
+        if (key === 'EMPTY_RESPONSE') {
+            box.appendChild(el('p', 'dc-error-hint', 'Avec Ollama, un texte plus long que la fenêtre de contexte (4 096 jetons par défaut) est tronqué silencieusement et le modèle peut ne rien renvoyer : réduisez la sélection ou lancez Ollama avec OLLAMA_CONTEXT_LENGTH=16384.'));
+        }
         if (err.showOpt) {
             box.appendChild(button('Ouvrir les options', ICONS.options, 'dc-btn-secondary', () => chrome.runtime.sendMessage({ action: 'openOptions' })));
         }
@@ -687,7 +707,7 @@
 
         switch (msg.phase) {
             case 'form':    showForm(msg.title, msg.form || { fields: [] }, msg.request || {}); break;
-            case 'loading': showLoading(msg.title); break;
+            case 'loading': showLoading(msg.title, { inputChars: msg.inputChars, isLocal: msg.isLocal }); break;
             case 'preview': showPreview(msg.title, msg.request); break;
             case 'stream':  showStream(msg.title, msg.partial); break;
             case 'result':  showResult(msg); break;

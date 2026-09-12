@@ -5,7 +5,7 @@ Extension Chrome open-source d'aide à la **rédaction administrative** pour pro
 <p align="center"><img src="icons/icon128.png" width="96" alt="Logo Dachi"></p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.3.0-6366F1">
+  <a href="https://github.com/opendocforge/dachi/releases/latest"><img alt="Dernière release" src="https://img.shields.io/github/v/release/opendocforge/dachi?label=release&color=6366F1"></a>
   <img alt="Manifest V3" src="https://img.shields.io/badge/Chrome-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white">
   <img alt="Licence" src="https://img.shields.io/badge/licence-Apache%202.0-blue">
   <img alt="Tests" src="https://img.shields.io/badge/tests-node%20--test-brightgreen">
@@ -62,13 +62,11 @@ La table de correspondance ne quitte jamais votre poste : elle sert à **ré-ide
 
 ## Installation
 
-1. Récupérez le code : bouton vert **Code → Download ZIP** sur cette page (puis décompressez), ou
-   ```bash
-   git clone https://github.com/opendocforge/dachi.git
-   ```
+1. Téléchargez la dernière version prête à installer : **[dachi-x.y.z.zip sur la page des releases](https://github.com/opendocforge/dachi/releases/latest)**, puis décompressez-la.
+   *(Développeurs : `git clone https://github.com/opendocforge/dachi.git` fonctionne aussi.)*
 2. Ouvrez Chrome → `chrome://extensions/`
-3. Activez le mode développeur
-4. Cliquez "Charger l'extension non empaquetée" et sélectionnez le dossier
+3. Activez le **Mode développeur** (interrupteur en haut à droite)
+4. Cliquez **Charger l'extension non empaquetée** et sélectionnez le dossier décompressé (celui qui contient `manifest.json`)
 5. Acceptez les CGU puis configurez votre fournisseur API (bouton **Tester la connexion**)
 6. Sélectionnez du texte sur n'importe quelle page → clic droit → **Dachi**
 

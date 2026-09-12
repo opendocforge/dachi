@@ -12,6 +12,10 @@ Extension Chrome open-source d'aide à la **rédaction administrative** pour pro
   <img alt="Télémétrie" src="https://img.shields.io/badge/t%C3%A9l%C3%A9m%C3%A9trie-aucune-success">
 </p>
 
+<p align="center">
+  <a href="https://github.com/opendocforge/dachi/releases/latest/download/dachi.zip"><img alt="Télécharger dachi.zip (dernière version)" src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20T%C3%A9l%C3%A9charger%20dachi.zip-derni%C3%A8re%20version-6366F1?style=for-the-badge"></a>
+</p>
+
 ---
 
 ## ⚠️ Avertissement important
@@ -67,7 +71,7 @@ La table de correspondance ne quitte jamais votre poste : elle sert à **ré-ide
 
 ## Installation
 
-1. Téléchargez la dernière version prête à installer : **[dachi-x.y.z.zip sur la page des releases](https://github.com/opendocforge/dachi/releases/latest)**, puis décompressez-la.
+1. Téléchargez la dernière version prête à installer : **[dachi.zip (lien direct)](https://github.com/opendocforge/dachi/releases/latest/download/dachi.zip)** — ou choisissez une version sur la [page des releases](https://github.com/opendocforge/dachi/releases) — puis décompressez l'archive.
    *(Développeurs : `git clone https://github.com/opendocforge/dachi.git` fonctionne aussi.)*
 2. Ouvrez Chrome → `chrome://extensions/`
 3. Activez le **Mode développeur** (interrupteur en haut à droite)
@@ -157,6 +161,8 @@ npm test
 ```
 
 Les tests couvrent l'anonymiseur (aller-retour, acronymes, régressions), le parseur de flux, la migration du stockage et le routage des secrets. Aucune dépendance : Node ≥ 20 suffit.
+
+**Publier une version** : incrémenter `version` dans `manifest.json` et `package.json`, créer la release GitHub `vX.Y.Z` en y joignant l'archive `dachi-X.Y.Z.zip` (fichiers de l'extension uniquement, dans un dossier `dachi-X.Y.Z/`) **et une copie nommée `dachi.zip`** — c'est elle que vise le lien stable `releases/latest/download/dachi.zip` du README.
 
 ## Licence
 

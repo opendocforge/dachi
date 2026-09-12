@@ -44,6 +44,8 @@ Actions disponibles via le clic droit sur du texte sélectionné :
 
 Chaque sortie est explicitement marquée comme **brouillon non validé**.
 
+Les actions se réordonnent dans la page d'options (glisser-déposer ou flèches) ; l'ordre est celui du menu du clic droit.
+
 **Questions avant génération** : toute action — par défaut ou créée par vous — peut poser des questions au clic droit (destinataire, motif, urgence, liste de choix…) avant de générer. Les réponses sont jointes au texte sélectionné sous forme de consignes. L'éditeur de questions se trouve dans la page d'options, à la création d'une action ou en modifiant une action existante ; « Courrier d'adressage guidé » en est un exemple pré-rempli.
 
 Dans la modale de résultat : réponse affichée **en streaming**, boutons **Régénérer**, **Affiner** (consigne supplémentaire appliquée à la réponse précédente), **Copier** et **Remplacer la sélection**. Le dernier résultat peut être rouvert depuis le menu Dachi. Un raccourci clavier (<kbd>Alt</kbd>+<kbd>Maj</kbd>+<kbd>D</kbd>, modifiable dans `chrome://extensions/shortcuts`) lance l'action rapide choisie dans les options.

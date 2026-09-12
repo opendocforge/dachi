@@ -147,3 +147,22 @@ test("courrier d'adressage guidé : seul le motif est obligatoire, le destinatai
   assert.match(guide.prompt, /\[NOM CONFRÈRE\]/, "le prompt sait quoi faire sans destinataire");
   assert.equal(MENU_ITEMS.filter(m => m.id === "courrier_adressage_guide").length, 1, "pas de doublon");
 });
+
+test("menu-store : ordre personnalisé des actions (menuOrder), inconnus à la fin, [] = défaut", async () => {
+  const { saveMenuOrder, applyMenuOrder, isMenuKey } = await import("../lib/menu-store.js");
+  assert.ok(isMenuKey("menuOrder"), "un changement d'ordre reconstruit le menu");
+
+  await saveMenuItem("custom_z", { custom: true, title: "Z", prompt: "P" });
+  await saveMenuOrder(["traduire_francais", "custom_z", "corriger_reformuler"]);
+  let items = resolveMenuItems(MENU_ITEMS, await loadMenuConfig());
+  assert.deepEqual(items.slice(0, 3).map(i => i.id), ["traduire_francais", "custom_z", "corriger_reformuler"]);
+  assert.equal(items[3].id, "repondre", "les autres suivent dans l'ordre naturel");
+  assert.equal(items.length, MENU_ITEMS.length + 1);
+
+  await saveMenuOrder([]);
+  items = resolveMenuItems(MENU_ITEMS, await loadMenuConfig());
+  assert.equal(items[0].id, "corriger_reformuler", "ordre par défaut restauré");
+  assert.ok(!("menuOrder" in chrome.storage.sync.data));
+
+  assert.deepEqual(applyMenuOrder([{ id: "a" }, { id: "b" }], ["b"]).map(i => i.id), ["b", "a"]);
+});

@@ -7,7 +7,7 @@
 
 import { MENU_ITEMS } from "./lib/menu-defaults.js";
 import { loadSettings, saveSettings, exportableSettings, DEFAULT_SETTINGS, SECRET_KEYS } from "./lib/settings.js";
-import { loadMenuConfig, saveMenuItem, removeMenuItem, resolveMenuItems, MAX_ITEM_BYTES } from "./lib/menu-store.js";
+import { loadMenuConfig, saveMenuItem, removeMenuItem, saveMenuOrder, resolveMenuItems, MAX_ITEM_BYTES } from "./lib/menu-store.js";
 import { remoteOriginPattern, resolveModelId } from "./lib/utils.js";
 
 const CGU_VERSION = "1.0";
@@ -487,7 +487,40 @@ const newPromptInput = $("new-action-prompt");
 const cancelAddBtn = $("cancel-add-btn");
 const confirmAddBtn = $("confirm-add-btn");
 
-let menuConfig = { overrides: {}, custom: [] };
+let menuConfig = { overrides: {}, custom: [], order: [] };
+
+/** Enregistre un nouvel ordre (liste d'identifiants) puis re-rend la liste. */
+async function persistOrder(ids) {
+  try {
+    await saveMenuOrder(ids);
+    menuConfig.order = ids;
+    chrome.runtime.sendMessage({ action: "rebuildMenus" }).catch(() => {});
+    renderMenuItems();
+  } catch (err) {
+    showToast(storageErrorMessage(err), true);
+  }
+}
+
+function moveItem(id, delta) {
+  const ids = currentItems().map(i => i.id);
+  const from = ids.indexOf(id);
+  const to = from + delta;
+  if (from < 0 || to < 0 || to >= ids.length) return;
+  ids.splice(to, 0, ids.splice(from, 1)[0]);
+  persistOrder(ids);
+}
+
+function moveItemTo(id, targetId, before) {
+  const ids = currentItems().map(i => i.id).filter(x => x !== id);
+  let idx = ids.indexOf(targetId);
+  if (idx < 0) return;
+  if (!before) idx += 1;
+  ids.splice(idx, 0, id);
+  persistOrder(ids);
+}
+
+// Glisser-déposer : identifiant en cours de déplacement
+let draggingId = null;
 
 async function loadMenuItems() {
   menuConfig = await loadMenuConfig();
@@ -747,8 +780,43 @@ function sameForm(a, b) {
 function buildRow(item) {
   const { id, title, prompt, examples, enabled, isDefault, override } = item;
   const wrapper = document.createElement("div");
+  wrapper.dataset.id = id;
 
   const row = el("div", "menu-item-row");
+
+  // Poignée de glisser-déposer
+  const handle = el("span", "menu-item-handle", "⋮⋮");
+  handle.title = "Glisser pour réordonner";
+  handle.draggable = true;
+  handle.setAttribute("aria-hidden", "true");
+  handle.addEventListener("dragstart", (e) => {
+    draggingId = id;
+    e.dataTransfer.effectAllowed = "move";
+    try { e.dataTransfer.setData("text/plain", id); } catch (_) {}
+    wrapper.classList.add("dragging");
+  });
+  handle.addEventListener("dragend", () => {
+    draggingId = null;
+    wrapper.classList.remove("dragging");
+    document.querySelectorAll(".drop-before, .drop-after").forEach(n => n.classList.remove("drop-before", "drop-after"));
+  });
+  wrapper.addEventListener("dragover", (e) => {
+    if (!draggingId || draggingId === id) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    const r = row.getBoundingClientRect();
+    const before = e.clientY < r.top + r.height / 2;
+    wrapper.classList.toggle("drop-before", before);
+    wrapper.classList.toggle("drop-after", !before);
+  });
+  wrapper.addEventListener("dragleave", () => wrapper.classList.remove("drop-before", "drop-after"));
+  wrapper.addEventListener("drop", (e) => {
+    if (!draggingId || draggingId === id) return;
+    e.preventDefault();
+    const before = wrapper.classList.contains("drop-before");
+    wrapper.classList.remove("drop-before", "drop-after");
+    moveItemTo(draggingId, id, before);
+  });
 
   // Toggle
   const toggleLabel = el("label", "menu-item-toggle");
@@ -765,6 +833,20 @@ function buildRow(item) {
   if (formBadge) formBadge.title = "Cette action pose d'abord quelques questions (destinataire, motif…) avant de générer.";
 
   const actionsEl = el("div", "menu-item-actions");
+  // Monter / descendre (clavier et souris)
+  const ids = currentItems().map(i => i.id);
+  const pos = ids.indexOf(id);
+  const upBtn = iconButton("▲", "Monter");
+  upBtn.classList.add("order-btn");
+  upBtn.disabled = pos <= 0;
+  upBtn.addEventListener("click", () => moveItem(id, -1));
+  const downBtn = iconButton("▼", "Descendre");
+  downBtn.classList.add("order-btn");
+  downBtn.disabled = pos < 0 || pos >= ids.length - 1;
+  downBtn.addEventListener("click", () => moveItem(id, 1));
+  actionsEl.appendChild(upBtn);
+  actionsEl.appendChild(downBtn);
+
   const editBtn = iconButton("✏️", "Modifier");
   actionsEl.appendChild(editBtn);
 
@@ -795,6 +877,7 @@ function buildRow(item) {
     actionsEl.appendChild(resetBtn);
   }
 
+  row.appendChild(handle);
   row.appendChild(toggleLabel);
   row.appendChild(labelEl);
   if (formBadge) row.appendChild(formBadge);
@@ -987,7 +1070,7 @@ $("export-btn").addEventListener("click", async () => {
     dachi: chrome.runtime.getManifest().version,
     exportedAt: new Date().toISOString(),
     settings: exportableSettings(settings),
-    menu: { overrides: menuConfig.overrides, custom: menuConfig.custom }
+    menu: { overrides: menuConfig.overrides, custom: menuConfig.custom, order: menuConfig.order }
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -1053,6 +1136,10 @@ $("import-file").addEventListener("change", async (e) => {
         await saveMenuItem(c.id, { custom: true, title: c.title, prompt: c.prompt, examples: c.examples || [], enabled: c.enabled !== false });
         imported++;
       } catch (_) { failed++; }
+    }
+
+    if (Array.isArray(menu.order)) {
+      try { await saveMenuOrder(menu.order.filter(x => typeof x === "string").slice(0, 200)); } catch (_) { /* ordre ignoré */ }
     }
 
     const settings = await loadSettings();

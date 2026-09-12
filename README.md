@@ -2,7 +2,15 @@
 
 Extension Chrome open-source d'aide à la **rédaction administrative** pour professionnels de santé. Interface accessible via le menu contextuel (clic droit) : sélectionnez du texte, appliquez une action de reformulation, traduction ou synthèse.
 
-![Dachi Screenshot](icons/icon128.png)
+<p align="center"><img src="icons/icon128.png" width="96" alt="Logo Dachi"></p>
+
+<p align="center">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.3.0-6366F1">
+  <img alt="Manifest V3" src="https://img.shields.io/badge/Chrome-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white">
+  <img alt="Licence" src="https://img.shields.io/badge/licence-Apache%202.0-blue">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-node%20--test-brightgreen">
+  <img alt="Télémétrie" src="https://img.shields.io/badge/t%C3%A9l%C3%A9m%C3%A9trie-aucune-success">
+</p>
 
 ---
 
@@ -54,14 +62,15 @@ La table de correspondance ne quitte jamais votre poste : elle sert à **ré-ide
 
 ## Installation
 
-1. Clonez le dépôt :
+1. Récupérez le code : bouton vert **Code → Download ZIP** sur cette page (puis décompressez), ou
    ```bash
    git clone https://github.com/opendocforge/dachi.git
    ```
 2. Ouvrez Chrome → `chrome://extensions/`
 3. Activez le mode développeur
 4. Cliquez "Charger l'extension non empaquetée" et sélectionnez le dossier
-5. Acceptez les CGU puis configurez votre fournisseur API
+5. Acceptez les CGU puis configurez votre fournisseur API (bouton **Tester la connexion**)
+6. Sélectionnez du texte sur n'importe quelle page → clic droit → **Dachi**
 
 ## Configuration
 
@@ -104,7 +113,7 @@ Le serveur peut tourner sur une autre machine que celle du cabinet, par exemple 
 
 ### Aucune garantie
 
-Logiciel fourni « en l'état » sous licence MIT. Aucune garantie de résultat, de disponibilité ou d'adéquation à un usage particulier. L'auteur décline toute responsabilité quant à l'usage qui en est fait.
+Logiciel fourni « en l'état » sous licence Apache 2.0. Aucune garantie de résultat, de disponibilité ou d'adéquation à un usage particulier. L'auteur décline toute responsabilité quant à l'usage qui en est fait.
 
 ## Sécurité technique
 
@@ -135,7 +144,7 @@ dachi/
 │   └── utils.js          # Helpers purs (permissions d'origine, erreurs, parseur SSE)
 ├── test/                 # Tests unitaires (node --test)
 ├── icons/                # Icônes extension
-└── LICENSE               # MIT
+└── LICENSE               # Apache 2.0
 ```
 
 ## Développement
@@ -148,7 +157,7 @@ Les tests couvrent l'anonymiseur (aller-retour, acronymes, régressions), le par
 
 ## Licence
 
-MIT. Voir [LICENSE](LICENSE).
+Apache License 2.0. Voir [LICENSE](LICENSE).
 
 ---
 

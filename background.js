@@ -12,7 +12,7 @@ import { loadSettings, DEFAULT_SETTINGS } from "./lib/settings.js";
 import { loadMenuConfig, resolveMenuItems, isMenuKey } from "./lib/menu-store.js";
 import {
   remoteOriginPattern, isKnownError, isRetryableError, errorKeyOf,
-  createSSEParser, deltaContentOf, sleep, resolveModelId
+  createSSEParser, deltaContentOf, sleep, resolveModelId, composeFormText
 } from "./lib/utils.js";
 
 const ROOT_MENU_ID = "assistant_medecin_root";
@@ -162,18 +162,36 @@ async function resolveMenuItem(menuId) {
 // 4. Pipeline : sélection → anonymisation → (aperçu) → API → ré-identification
 // ---------------------------------------------------------------------------
 
-/** Point d'entrée commun (menu contextuel, raccourci clavier). */
-async function startAction({ tabId, menuId, fallbackText }) {
+/**
+ * Point d'entrée commun (menu contextuel, raccourci clavier, questions validées).
+ * `answers` : réponses aux questions de l'action (si elle en pose) ;
+ * `sourceText` : texte sélectionné conservé entre l'affichage des questions
+ * et leur validation.
+ */
+async function startAction({ tabId, menuId, fallbackText, answers, sourceText }) {
   let item = null;
   try {
     item = await resolveMenuItem(menuId);
     if (!item) return;
 
     await ensureContentScript(tabId);
-    const text = await getSelectionFromTab(tabId, fallbackText);
+    let text = typeof sourceText === "string" ? sourceText : await getSelectionFromTab(tabId, fallbackText);
     if (!text.trim()) {
       safeSend(tabId, { phase: "toast", message: "Sélectionnez d'abord du texte.", isError: true });
       return;
+    }
+
+    // Action avec questions : on les pose d'abord au médecin, puis on revient
+    // ici avec `answers` (message submitForm du content script).
+    const form = item.form && Array.isArray(item.form.fields) && item.form.fields.length ? item.form : null;
+    let formUsed = false;
+    if (form && !answers) {
+      safeSend(tabId, { phase: "form", title: item.title, form, request: { menuId: item.id, sourceText: text } });
+      return;
+    }
+    if (form && answers) {
+      text = composeFormText(form, text, answers);
+      formUsed = true;
     }
 
     const settings = await loadSettings();
@@ -193,7 +211,7 @@ async function startAction({ tabId, menuId, fallbackText }) {
       anonymization = { enabled: true, count: r.count, replacements: r.replacements };
     }
 
-    const request = { menuId: item.id, title: item.title, text: processed, anonymization, map };
+    const request = { menuId: item.id, title: item.title, text: processed, anonymization, map, formUsed };
 
     if (settings.confirmBeforeSend) {
       // L'utilisateur relit / corrige le texte anonymisé, puis renvoie `runAction`.
@@ -250,7 +268,7 @@ async function runGeneration({ tabId, item, request, settings }) {
       rehydration: { enabled: !!settings.rehydrateEnabled, restored: final.restored },
       truncated: finishReason === "length",
       usage: usageSummary(usage, settings.maxTokens || DEFAULT_SETTINGS.maxTokens),
-      request: { menuId: request.menuId, title: item.title, text: request.text, anonymization: request.anonymization, map }
+      request: { menuId: request.menuId, title: item.title, text: request.text, anonymization: request.anonymization, map, formUsed: !!request.formUsed }
     });
   } catch (error) {
     safeSend(tabId, { phase: "error", title: item ? item.title : "Dachi", error: error.message });
@@ -264,6 +282,9 @@ function buildMessages(settings, item, request) {
   let system = item.prompt;
   if (settings.doctorContext && settings.doctorContext.trim()) {
     system = `Contexte du médecin : ${settings.doctorContext.trim()}\n\n${system}`;
+  }
+  if (request.formUsed) {
+    system += "\n\nLe message du médecin contient deux blocs : « ### Données sources » (le texte qu'il a sélectionné) et « ### Consignes du médecin » (ses réponses à tes questions). Respecte strictement les consignes et n'utilise que les faits présents dans ces deux blocs.";
   }
   const extra = (request.extraInstruction || "").trim();
   if (extra && !request.previousResult) {
@@ -577,6 +598,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       chrome.runtime.openOptionsPage();
       sendResponse({ ok: true });
       return false;
+
+    case "submitForm": {
+      // Formulaire validé dans la modale → pipeline normal avec les consignes
+      const tabId = sender.tab && sender.tab.id;
+      if (tabId == null) { sendResponse({ ok: false }); return false; }
+      startAction({ tabId, menuId: message.menuId, sourceText: message.sourceText, answers: message.answers || {} });
+      sendResponse({ ok: true });
+      return false;
+    }
 
     case "runAction": {
       // Depuis le content script : aperçu validé, régénérer, affiner

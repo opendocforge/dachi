@@ -76,3 +76,15 @@ test("resolveModelId : identifiant exact, casse, nom d'affichage OpenRouter, var
   assert.equal(resolveModelId("", catalog), null);
   assert.equal(normalizeModelName("inclusionAI: Ling 3.0 Flash VL (free)"), "ling 3 0 flash vl");
 });
+
+test("composeFormText : données sources + consignes, champs vides omis, multilignes indentées", async () => {
+  const { composeFormText } = await import("../lib/utils.js");
+  const form = { fields: [
+    { key: "dest", label: "Destinataire" },
+    { key: "motif", label: "Motif" },
+    { key: "vide", label: "Ignoré" }
+  ] };
+  const out = composeFormText(form, "CR du 12/03/2024 : HTA.", { dest: "Dr Durand", motif: "Avis\nHolter souhaité", vide: "  " });
+  assert.equal(out, "### Données sources\nCR du 12/03/2024 : HTA.\n\n### Consignes du médecin\n- Destinataire : Dr Durand\n- Motif : \n  Avis\n  Holter souhaité");
+  assert.equal(composeFormText({ fields: [] }, "", {}), "### Données sources\n(aucune)\n\n### Consignes du médecin\n(aucune)");
+});

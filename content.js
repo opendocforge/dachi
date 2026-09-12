@@ -5,9 +5,10 @@
  * par background.js via globalThis.__DACHI_CSS (monde isolé) avant l'injection.
  * Script classique (pas de module).
  *
- * Phases reçues du Service Worker : loading, preview, stream, result, error,
- * reopen, toast. Messages émis : runAction (aperçu validé / régénérer / affiner),
- * openOptions. Répond à ping et getSelection.
+ * Phases reçues du Service Worker : form, loading, preview, stream, result,
+ * error, reopen, toast. Messages émis : submitForm (réponses aux questions),
+ * runAction (aperçu validé / régénérer / affiner), openOptions.
+ * Répond à ping et getSelection.
  */
 (() => {
     'use strict';
@@ -70,7 +71,8 @@
     let currentRequest = null;   // requête en cours (pour régénérer / affiner)
     let lastResult = null;       // dernier résultat affiché (pour « rouvrir »)
     let previousFocus = null;    // focus à restaurer à la fermeture
-    let mode = null;             // loading | preview | stream | result | error
+    let mode = null;             // form | loading | preview | stream | result | error
+    const lastAnswers = {};      // dernières réponses par action (pré-remplissage)
 
     function isEditableEl(el) {
         return el && el.nodeType === Node.ELEMENT_NODE && (
@@ -284,6 +286,93 @@
             </div>`;
         setActions();
         openPreview();
+    }
+
+    /** Questions posées avant la génération (actions qui en déclarent). */
+    function showForm(title, form, request) {
+        mode = 'form';
+        titleEl.textContent = title;
+        bodyEl.innerHTML = '';
+
+        if (form.intro) bodyEl.appendChild(banner('info', `📝 ${form.intro}`));
+
+        const wrap = el('div', 'dc-form');
+        const controls = {};
+        const previous = lastAnswers[request.menuId] || {};
+
+        for (const f of form.fields || []) {
+            const half = f.type !== 'textarea';
+            const field = el('div', 'dc-field' + (half ? ' dc-field-half' : ''));
+            const id = `dc-f-${f.key}`;
+            const label = el('label', null, f.label + (f.required ? ' *' : ''));
+            label.htmlFor = id;
+            let control;
+            if (f.type === 'textarea') {
+                control = el('textarea');
+                control.rows = f.rows || 2;
+            } else if (f.type === 'select') {
+                control = el('select');
+                for (const opt of f.options || []) {
+                    const o = el('option', null, opt);
+                    o.value = opt;
+                    control.appendChild(o);
+                }
+            } else {
+                control = el('input');
+                control.type = 'text';
+                if (Array.isArray(f.suggestions) && f.suggestions.length) {
+                    const dl = el('datalist');
+                    dl.id = `${id}-list`;
+                    for (const s of f.suggestions) { const o = el('option'); o.value = s; dl.appendChild(o); }
+                    control.setAttribute('list', dl.id);
+                    field.appendChild(dl);
+                }
+            }
+            control.id = id;
+            if (f.placeholder) control.placeholder = f.placeholder;
+            if (previous[f.key] != null) control.value = previous[f.key];
+            controls[f.key] = control;
+            field.appendChild(label);
+            field.appendChild(control);
+            if (f.help) field.appendChild(el('p', 'dc-field-help', f.help));
+            wrap.appendChild(field);
+        }
+        bodyEl.appendChild(wrap);
+
+        const submit = () => {
+            const answers = {};
+            for (const f of form.fields || []) {
+                const v = (controls[f.key].value || '').trim();
+                if (f.required && !v) {
+                    controls[f.key].focus();
+                    controls[f.key].classList.add('dc-invalid');
+                    showToast(`« ${f.label} » est obligatoire.`, true);
+                    return;
+                }
+                answers[f.key] = v;
+            }
+            lastAnswers[request.menuId] = answers;
+            showLoading(title);
+            try {
+                const p = chrome.runtime.sendMessage({ action: 'submitForm', menuId: request.menuId, sourceText: request.sourceText, answers });
+                if (p && typeof p.catch === 'function') p.catch(() => showError(title, 'NETWORK_ERROR: extension injoignable'));
+            } catch (_) {
+                showError(title, 'NETWORK_ERROR: extension injoignable');
+            }
+        };
+
+        for (const c of Object.values(controls)) {
+            c.addEventListener('input', () => c.classList.remove('dc-invalid'));
+            if (c.tagName !== 'TEXTAREA') c.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+        }
+
+        setActions(
+            button('Annuler', null, 'dc-btn-secondary', closePreview),
+            button(form.submitLabel || 'Générer', ICONS.sparkle, 'dc-btn-primary', submit)
+        );
+        openPreview();
+        const first = Object.values(controls)[0];
+        if (first) setTimeout(() => first.focus(), 50);
     }
 
     /** Aperçu du texte anonymisé avant envoi (modifiable). */
@@ -551,6 +640,7 @@
         if (msg.action === 'getSelection') { sendResponse({ text: getSelectionText() }); return; }
 
         switch (msg.phase) {
+            case 'form':    showForm(msg.title, msg.form || { fields: [] }, msg.request || {}); break;
             case 'loading': showLoading(msg.title); break;
             case 'preview': showPreview(msg.title, msg.request); break;
             case 'stream':  showStream(msg.title, msg.partial); break;

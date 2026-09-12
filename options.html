@@ -607,6 +607,16 @@
     }
     .badge-default { }
     .badge-custom { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+    .badge-form { background: var(--success-soft); color: var(--success-text); border-color: transparent; }
+
+    /* Éditeur de questions */
+    .form-editor { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border-strong); }
+    .form-editor > .checkbox-row { margin-bottom: 4px; }
+    .form-editor > .checkbox-row label { font-weight: 600; }
+    .form-editor-panel { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+    .form-editor-panel > label { margin-top: 4px; }
+    .question-grid { display: grid; grid-template-columns: 1fr 180px; gap: 10px; }
+    @media (max-width: 700px) { .question-grid { grid-template-columns: 1fr; } }
 
     .menu-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
 
@@ -1187,6 +1197,7 @@
               <label for="new-action-prompt">Prompt système</label>
               <textarea id="new-action-prompt" rows="5" placeholder="Décris ici ce que l'IA doit faire avec le texte sélectionné..."></textarea>
             </div>
+            <div id="new-action-form-editor"></div>
             <div class="edit-panel-actions">
               <button type="button" class="btn-sm btn-sm-ghost" id="cancel-add-btn">Annuler</button>
               <button type="button" class="btn-sm btn-sm-primary" id="confirm-add-btn">Ajouter l'action</button>

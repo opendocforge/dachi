@@ -119,3 +119,23 @@ test("settings : l'ID de projet Scaleway reste sur le poste (local) et hors expo
   const s = await loadSettings();
   assert.ok(!("scalewayProjectId" in exportableSettings(s)));
 });
+
+test("menu-store : les questions (form) héritent du défaut, peuvent être remplacées ou retirées", async () => {
+  const guide = MENU_ITEMS.find(m => m.id === "courrier_adressage_guide");
+  assert.ok(guide && guide.form && guide.form.fields.length >= 3, "action par défaut avec questions");
+
+  let items = resolveMenuItems(MENU_ITEMS, await loadMenuConfig());
+  assert.equal(items.find(i => i.id === "courrier_adressage_guide").form, guide.form, "héritage");
+  assert.equal(items.find(i => i.id === "resumer").form, null);
+
+  await saveMenuItem("courrier_adressage_guide", { form: null });
+  items = resolveMenuItems(MENU_ITEMS, await loadMenuConfig());
+  assert.equal(items.find(i => i.id === "courrier_adressage_guide").form, null, "retiré par l'utilisateur");
+
+  const custom = { fields: [{ key: "motif_1", label: "Motif", type: "textarea", required: true }] };
+  await saveMenuItem("resumer", { form: custom });
+  await saveMenuItem("custom_7", { custom: true, title: "Perso", prompt: "P", form: custom });
+  items = resolveMenuItems(MENU_ITEMS, await loadMenuConfig());
+  assert.deepEqual(items.find(i => i.id === "resumer").form, custom, "ajouté à une action par défaut");
+  assert.deepEqual(items.find(i => i.id === "custom_7").form, custom, "action perso");
+});

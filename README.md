@@ -38,10 +38,13 @@ Actions disponibles via le clic droit sur du texte sélectionné :
 | 📞 **Répondre Secrétariat** | Brouillon de réponse de secrétariat médical |
 | 📋 **Résumer** | Synthèse rédactionnelle d'un texte long |
 | ✉️ **Brouillon de courrier** | Brouillon de courrier d'adressage administratif |
+| 📨 **Courrier d'adressage guidé** | Sélectionnez un ancien courrier ou compte-rendu : Dachi demande d'abord le destinataire, la spécialité, le motif, l'urgence et les points à souligner, puis rédige un courrier d'adressage complet à partir des deux |
 | 📜 **Brouillon de certificat** | Brouillon de certificat (sans diagnostic) |
 | 🌐 **Traduire en français** | Traduction avec conservation terminologique |
 
 Chaque sortie est explicitement marquée comme **brouillon non validé**.
+
+**Questions avant génération** : toute action — par défaut ou créée par vous — peut poser des questions au clic droit (destinataire, motif, urgence, liste de choix…) avant de générer. Les réponses sont jointes au texte sélectionné sous forme de consignes. L'éditeur de questions se trouve dans la page d'options, à la création d'une action ou en modifiant une action existante ; « Courrier d'adressage guidé » en est un exemple pré-rempli.
 
 Dans la modale de résultat : réponse affichée **en streaming**, boutons **Régénérer**, **Affiner** (consigne supplémentaire appliquée à la réponse précédente), **Copier** et **Remplacer la sélection**. Le dernier résultat peut être rouvert depuis le menu Dachi. Un raccourci clavier (<kbd>Alt</kbd>+<kbd>Maj</kbd>+<kbd>D</kbd>, modifiable dans `chrome://extensions/shortcuts`) lance l'action rapide choisie dans les options.
 

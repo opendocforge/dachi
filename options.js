@@ -557,6 +557,193 @@ function iconButton(label, title, extraClass = "") {
   return b;
 }
 
+// ── Éditeur « Questions posées avant la génération » ────────────────────
+// Utilisé dans le panneau d'édition de chaque action et dans le formulaire
+// de création. getValue() renvoie null (pas de questions) ou
+// { intro, submitLabel, fields: [{ key, label, type, placeholder, required, options?, suggestions? }] }.
+const FIELD_TYPES = [["text", "Texte court"], ["textarea", "Texte long"], ["select", "Liste de choix"]];
+
+function slugKey(label, idx) {
+  const base = String(label || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 30);
+  return (base || "q") + "_" + (idx + 1);
+}
+
+function buildFormEditor(initial) {
+  const wrap = el("div", "form-editor");
+
+  const toggleRow = el("div", "checkbox-row");
+  const toggle = document.createElement("input");
+  toggle.type = "checkbox";
+  toggle.id = "fe-" + Math.random().toString(36).slice(2, 8);
+  toggle.checked = !!(initial && Array.isArray(initial.fields) && initial.fields.length);
+  const toggleLabel = el("label", null, "Poser des questions avant de générer");
+  toggleLabel.htmlFor = toggle.id;
+  toggleRow.appendChild(toggle);
+  toggleRow.appendChild(toggleLabel);
+  wrap.appendChild(toggleRow);
+  wrap.appendChild(el("p", "api-help", "Au clic droit, Dachi affiche d'abord ces questions ; les réponses sont ajoutées au texte sélectionné sous forme de consignes (« Données sources » + « Consignes du médecin »)."));
+
+  const panel = el("div", "form-editor-panel");
+  panel.classList.toggle("hidden", !toggle.checked);
+  toggle.addEventListener("change", () => panel.classList.toggle("hidden", !toggle.checked));
+
+  const introLabel = el("label", null, "Texte d'introduction (facultatif)");
+  const introInput = document.createElement("input");
+  introInput.type = "text";
+  introInput.placeholder = "Ex : Le texte sélectionné sert de données sources. Précisez à qui et pourquoi…";
+  introInput.value = (initial && initial.intro) || "";
+  panel.appendChild(introLabel);
+  panel.appendChild(introInput);
+
+  const submitLabelLabel = el("label", null, "Libellé du bouton (facultatif)");
+  const submitLabelInput = document.createElement("input");
+  submitLabelInput.type = "text";
+  submitLabelInput.placeholder = "Générer";
+  submitLabelInput.value = (initial && initial.submitLabel) || "";
+  panel.appendChild(submitLabelLabel);
+  panel.appendChild(submitLabelInput);
+
+  const list = el("div", "examples-list");
+  const fields = ((initial && initial.fields) || []).map(f => ({
+    label: f.label || "", type: FIELD_TYPES.some(t => t[0] === f.type) ? f.type : "text",
+    placeholder: f.placeholder || "", required: !!f.required,
+    options: Array.isArray(f.options) ? f.options.join(", ") : "",
+    suggestions: Array.isArray(f.suggestions) ? f.suggestions : null
+  }));
+
+  function renderFields() {
+    list.innerHTML = "";
+    if (!fields.length) {
+      const empty = el("p", "api-help", "Aucune question pour le moment.");
+      empty.style.fontStyle = "italic";
+      list.appendChild(empty);
+    }
+    fields.forEach((f, idx) => {
+      const card = el("div", "example-card");
+      const head = el("div", "example-card-header");
+      head.appendChild(el("strong", null, `Question ${idx + 1}`));
+      const tools = el("div", "menu-item-actions");
+      if (idx > 0) {
+        const up = iconButton("⬆️", "Monter");
+        up.addEventListener("click", () => { [fields[idx - 1], fields[idx]] = [fields[idx], fields[idx - 1]]; renderFields(); });
+        tools.appendChild(up);
+      }
+      const del = iconButton("🗑️", "Supprimer cette question", "danger");
+      del.addEventListener("click", () => { fields.splice(idx, 1); renderFields(); });
+      tools.appendChild(del);
+      head.appendChild(tools);
+      card.appendChild(head);
+
+      const grid = el("div", "question-grid");
+
+      const labelCol = el("div", "edit-col");
+      labelCol.appendChild(el("label", null, "Question / libellé"));
+      const labelInput = document.createElement("input");
+      labelInput.type = "text";
+      labelInput.placeholder = "Ex : Destinataire";
+      labelInput.value = f.label;
+      labelInput.addEventListener("input", () => { f.label = labelInput.value; });
+      labelCol.appendChild(labelInput);
+
+      const typeCol = el("div", "edit-col");
+      typeCol.appendChild(el("label", null, "Type de réponse"));
+      const typeSelect = document.createElement("select");
+      for (const [v, t] of FIELD_TYPES) { const o = el("option", null, t); o.value = v; typeSelect.appendChild(o); }
+      typeSelect.value = f.type;
+      typeCol.appendChild(typeSelect);
+
+      grid.appendChild(labelCol);
+      grid.appendChild(typeCol);
+      card.appendChild(grid);
+
+      const optionsCol = el("div", "edit-col");
+      optionsCol.appendChild(el("label", null, "Choix proposés (séparés par des virgules)"));
+      const optionsInput = document.createElement("input");
+      optionsInput.type = "text";
+      optionsInput.placeholder = "Non urgent, Semi-urgent, Urgent";
+      optionsInput.value = f.options;
+      optionsInput.addEventListener("input", () => { f.options = optionsInput.value; });
+      optionsCol.appendChild(optionsInput);
+      optionsCol.classList.toggle("hidden", f.type !== "select");
+      card.appendChild(optionsCol);
+
+      const phCol = el("div", "edit-col");
+      phCol.appendChild(el("label", null, "Exemple / aide affichée dans le champ (facultatif)"));
+      const phInput = document.createElement("input");
+      phInput.type = "text";
+      phInput.placeholder = "Ex : Dr Durand / Service de cardiologie…";
+      phInput.value = f.placeholder;
+      phInput.addEventListener("input", () => { f.placeholder = phInput.value; });
+      phCol.appendChild(phInput);
+      phCol.classList.toggle("hidden", f.type === "select");
+      card.appendChild(phCol);
+
+      typeSelect.addEventListener("change", () => {
+        f.type = typeSelect.value;
+        optionsCol.classList.toggle("hidden", f.type !== "select");
+        phCol.classList.toggle("hidden", f.type === "select");
+      });
+
+      const reqRow = el("div", "checkbox-row");
+      reqRow.style.marginBottom = "0";
+      const req = document.createElement("input");
+      req.type = "checkbox";
+      req.id = `${toggle.id}-req-${idx}`;
+      req.checked = f.required;
+      req.addEventListener("change", () => { f.required = req.checked; });
+      const reqLabel = el("label", null, "Réponse obligatoire");
+      reqLabel.htmlFor = req.id;
+      reqRow.appendChild(req);
+      reqRow.appendChild(reqLabel);
+      card.appendChild(reqRow);
+
+      list.appendChild(card);
+    });
+  }
+  renderFields();
+  panel.appendChild(el("label", null, "Questions"));
+  panel.appendChild(list);
+
+  const addBtn = el("button", "btn-sm btn-sm-ghost", "➕ Ajouter une question");
+  addBtn.type = "button";
+  addBtn.style.marginTop = "8px";
+  addBtn.addEventListener("click", () => { fields.push({ label: "", type: "text", placeholder: "", required: false, options: "", suggestions: null }); renderFields(); });
+  panel.appendChild(addBtn);
+  wrap.appendChild(panel);
+
+  return {
+    element: wrap,
+    getValue() {
+      if (!toggle.checked) return null;
+      const out = fields
+        .map((f, idx) => ({ ...f, label: f.label.trim() }))
+        .filter(f => f.label)
+        .map((f, idx) => {
+          const spec = { key: slugKey(f.label, idx), label: f.label, type: f.type };
+          if (f.required) spec.required = true;
+          if (f.type === "select") {
+            spec.options = f.options.split(",").map(s => s.trim()).filter(Boolean);
+            if (!spec.options.length) spec.type = "text";
+          } else if (f.placeholder.trim()) {
+            spec.placeholder = f.placeholder.trim();
+          }
+          if (f.type === "text" && f.suggestions) spec.suggestions = f.suggestions;
+          return spec;
+        });
+      if (!out.length) return null;
+      const form = { fields: out };
+      if (introInput.value.trim()) form.intro = introInput.value.trim();
+      if (submitLabelInput.value.trim()) form.submitLabel = submitLabelInput.value.trim();
+      return form;
+    }
+  };
+}
+
+function sameForm(a, b) {
+  return JSON.stringify(a || null) === JSON.stringify(b || null);
+}
+
 function buildRow(item) {
   const { id, title, prompt, examples, enabled, isDefault, override } = item;
   const wrapper = document.createElement("div");
@@ -574,6 +761,8 @@ function buildRow(item) {
 
   const labelEl = el("span", "menu-item-label" + (enabled ? "" : " disabled"), title);
   const badge = el("span", "menu-item-badge " + (isDefault ? "badge-default" : "badge-custom"), isDefault ? "Défaut" : "Perso");
+  const formBadge = item.form ? el("span", "menu-item-badge badge-form", "Formulaire") : null;
+  if (formBadge) formBadge.title = "Cette action pose d'abord quelques questions (destinataire, motif…) avant de générer.";
 
   const actionsEl = el("div", "menu-item-actions");
   const editBtn = iconButton("✏️", "Modifier");
@@ -595,8 +784,8 @@ function buildRow(item) {
     actionsEl.appendChild(delBtn);
   }
 
-  if (isDefault && override && (override.prompt || override.title || override.examples)) {
-    const resetBtn = iconButton("↩️", "Restaurer le prompt et les exemples par défaut");
+  if (isDefault && override && (override.prompt || override.title || override.examples || override.form !== undefined)) {
+    const resetBtn = iconButton("↩️", "Restaurer le prompt, les exemples et les questions par défaut");
     resetBtn.addEventListener("click", async () => {
       if (!confirm("Restaurer le prompt, le titre et les exemples d'origine ?")) return;
       const data = {};
@@ -608,6 +797,7 @@ function buildRow(item) {
 
   row.appendChild(toggleLabel);
   row.appendChild(labelEl);
+  if (formBadge) row.appendChild(formBadge);
   row.appendChild(badge);
   row.appendChild(actionsEl);
 
@@ -699,6 +889,11 @@ function buildRow(item) {
   twoCol.appendChild(leftCol);
   twoCol.appendChild(rightCol);
 
+  // Forme canonique du formulaire par défaut (même normalisation que l'éditeur)
+  // pour ne stocker un override que s'il diffère réellement.
+  const defaultForm = isDefault ? buildFormEditor(MENU_ITEMS.find(m => m.id === id)?.form || null).getValue() : null;
+  const formEditor = buildFormEditor(item.form);
+
   const closePanel = () => { editPanel.classList.remove("open"); editBtn.textContent = "✏️"; };
 
   const panelActions = el("div", "edit-panel-actions");
@@ -716,9 +911,14 @@ function buildRow(item) {
       .map(e => ({ input: (e.input || "").trim(), output: (e.output || "").trim() }))
       .filter(e => e.input && e.output);
 
+    const newForm = formEditor.getValue();
     const data = isDefault
       ? { ...(override || {}), title: newTitle, prompt: newPrompt, examples: cleanedExamples }
-      : { title: newTitle, prompt: newPrompt, examples: cleanedExamples, enabled };
+      : { title: newTitle, prompt: newPrompt, examples: cleanedExamples, enabled, form: newForm };
+    if (isDefault) {
+      // On ne stocke le formulaire que s'il diffère de celui de l'action par défaut
+      if (sameForm(newForm, defaultForm)) delete data.form; else data.form = newForm;
+    }
     await persistItem(item, data, () => { closePanel(); renderMenuItems(); showToast("Action enregistrée"); });
   });
 
@@ -728,6 +928,7 @@ function buildRow(item) {
   inner.appendChild(titleLabel);
   inner.appendChild(titleInput);
   inner.appendChild(twoCol);
+  inner.appendChild(formEditor.element);
   inner.appendChild(panelActions);
   editPanel.appendChild(inner);
 
@@ -755,14 +956,22 @@ cancelAddBtn.addEventListener("click", () => {
   newPromptInput.value = "";
 });
 
+let addFormEditor = buildFormEditor(null);
+$("new-action-form-editor").appendChild(addFormEditor.element);
+
 confirmAddBtn.addEventListener("click", async () => {
   const title = newTitleInput.value.trim();
   const prompt = newPromptInput.value.trim();
   if (!title || !prompt) { alert("Le titre et le prompt sont obligatoires."); return; }
   const item = { id: "custom_" + Date.now(), isDefault: false };
-  await persistItem(item, { title, prompt, examples: [], enabled: true }, () => {
+  await persistItem(item, { title, prompt, examples: [], enabled: true, form: addFormEditor.getValue() }, () => {
     renderMenuItems();
     cancelAddBtn.click();
+    // Réinitialiser l'éditeur de questions pour la prochaine création
+    const holder = $("new-action-form-editor");
+    holder.innerHTML = "";
+    addFormEditor = buildFormEditor(null);
+    holder.appendChild(addFormEditor.element);
     showToast("Action ajoutée");
   });
 });

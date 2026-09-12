@@ -139,3 +139,11 @@ test("menu-store : les questions (form) héritent du défaut, peuvent être remp
   assert.deepEqual(items.find(i => i.id === "resumer").form, custom, "ajouté à une action par défaut");
   assert.deepEqual(items.find(i => i.id === "custom_7").form, custom, "action perso");
 });
+
+test("courrier d'adressage guidé : seul le motif est obligatoire, le destinataire est facultatif", () => {
+  const guide = MENU_ITEMS.find(m => m.id === "courrier_adressage_guide");
+  const required = guide.form.fields.filter(f => f.required).map(f => f.key);
+  assert.deepEqual(required, ["motif"]);
+  assert.match(guide.prompt, /\[NOM CONFRÈRE\]/, "le prompt sait quoi faire sans destinataire");
+  assert.equal(MENU_ITEMS.filter(m => m.id === "courrier_adressage_guide").length, 1, "pas de doublon");
+});

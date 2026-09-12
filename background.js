@@ -1,223 +1,28 @@
 // ============================================================================
-// background.js — Service Worker (Manifest V3)
-// Gère le menu contextuel, les appels API (Scaleway HDS / Local / OpenAI Direct)
-// et la communication avec le content script.
-// La clé API ne quitte jamais le Service Worker.
-// Anonymisation automatique des données identifiantes avant envoi.
+// background.js — Service Worker (Manifest V3, mode module)
+// Menu contextuel, raccourci clavier, pipeline anonymisation → API → ré-identification,
+// streaming vers le content script, tests de connexion, liste des modèles.
+// Les clés API ne quittent jamais le Service Worker ; la table de
+// correspondance placeholder → valeur d'origine ne quitte jamais le poste.
 // ============================================================================
 
-// ============================================================================
-// Module d'anonymisation — INLINÉ ici (anciennement anonymizer.js).
-// L'inlining évite les erreurs "importScripts failed to load" qui tuent
-// le Service Worker quand le fichier externe n'est pas immédiatement
-// disponible après un reload de l'extension.
-// ============================================================================
+import { anonymizeText, rehydrateText, parseAcronymList } from "./lib/anonymizer.js";
+import { MENU_ITEMS } from "./lib/menu-defaults.js";
+import { loadSettings, DEFAULT_SETTINGS } from "./lib/settings.js";
+import { loadMenuConfig, resolveMenuItems, isMenuKey } from "./lib/menu-store.js";
+import {
+  remoteOriginPattern, isKnownError, isRetryableError, errorKeyOf,
+  createSSEParser, deltaContentOf, sleep, resolveModelId
+} from "./lib/utils.js";
 
-const MEDICAL_ACRONYMS = new Set([
-  "ECG","EEG","EMG","IRM","TDM","TEP","PET","CT","NFS","TSH","CRP","VS","INR","TP","TCA",
-  "HAS","ANSM","INSERM","CHU","CHR","EHPAD","SAMU","SMUR","IDE","RPPS","ADELI","FINESS",
-  "HbA1c","LDL","HDL","AVC","AVK","AOD","BPCO","OAP","IDM","SCA","IC","IM","IT","PR",
-  "SEP","AIT","RGO","MCE","EP","TVP","EPO","GFR","DFG","UI","ALD","ITT","AT","MP",
-  "HGPO","HBPM","AAA","AIC","ALAT","ASAT","BAV","BMI","BNP","CCA","DCI","DGS","DM","DMS",
-  "EFR","ETT","ETO","FC","FEVG","FR","GB","GGT","Hb","Ht","HTA","HTAP","IMC","IPP",
-  "IRC","IRA","IST","IV","NAD","NYHA","OMI","OMS","PCR","PEP","PSA","RAA","RCH","RR",
-  "SAS","SPO2","TA","TAD","TAS","VGM","TCMH","CCMH","Ig","IgG","IgM","IgA","IgE",
-  "RAI","RPS","CMI","RIA","BPL","BPF","SIDA","VIH","VHC","VHB","VZV","CMV","EBV","HSV",
-  "ANCA","AC","AAN","IGF","T3","T4","ACTH","LH","FSH","GH","DHEA","PTH",
-  "ROS","NO","COX","LOX","PG","TNF","IL","IFN","CD","HLA","BCR","TCR","MHC"
-]);
-
-const TITRES = "(M\\.|Mme\\.?|Mlle\\.?|Mr\\.?|Mrs\\.?|Dr\\.?|Pr\\.?|Me\\.?|Monsieur|Madame|Mademoiselle|Docteur|Professeur|Maître|Patient|Patiente)";
-
-function anonymizeText(text) {
-  if (!text) return { text: "", count: 0, replacements: {} };
-
-  let out = text;
-  const replacements = { email: 0, nir: 0, tel: 0, date: 0, cp_ville: 0, nom: 0, ipp: 0 };
-
-  out = out.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, () => { replacements.email++; return "[EMAIL]"; });
-
-  out = out.replace(
-    /\b[12]\s?\d{2}\s?(?:0[1-9]|1[0-2]|2[0-9]|3[0-9]|4[0-9]|5[0-9]|6[0-9]|7[0-9]|8[0-9]|9[0-9])\s?(?:2A|2B|\d{2,3})\s?\d{3}\s?\d{3}(?:\s?\d{2})?\b/g,
-    () => { replacements.nir++; return "[NIR]"; }
-  );
-
-  out = out.replace(
-    /\b(IPP|N°\s*dossier|N°\s*patient|Dossier\s*n°)\s*:?\s*\d{4,12}\b/gi,
-    () => { replacements.ipp++; return "[IPP]"; }
-  );
-
-  out = out.replace(
-    /\b(?:\+33\s?|0033\s?|0)[1-9](?:[\s.\-]?\d{2}){4}\b/g,
-    () => { replacements.tel++; return "[TEL]"; }
-  );
-
-  out = out.replace(
-    /\b(0?[1-9]|[12]\d|3[01])[\/.\-\s](0?[1-9]|1[0-2])[\/.\-\s](19|20)\d{2}\b/g,
-    () => { replacements.date++; return "[DATE]"; }
-  );
-
-  out = out.replace(
-    /\b\d{5}\s+[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ\-']+(?:[\s\-][A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ\-']+){0,3}/g,
-    () => { replacements.cp_ville++; return "[CP_VILLE]"; }
-  );
-
-  const titresRegex = new RegExp(
-    `\\b${TITRES}\\s+([A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ\\-']+(?:\\s+[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ\\-']+){0,3})\\b`,
-    "g"
-  );
-  out = out.replace(titresRegex, (match, titre) => { replacements.nom++; return `${titre} [NOM]`; });
-
-  out = out.replace(
-    /\b([A-ZÀ-ÖØ-Ý]{2,}(?:[\s\-][A-ZÀ-ÖØ-Ý]{2,}){0,3})\b/g,
-    (match, nom) => {
-      const cleaned = nom.replace(/[\s\-]/g, "");
-      if (MEDICAL_ACRONYMS.has(nom) || MEDICAL_ACRONYMS.has(cleaned)) return match;
-      if (cleaned.length < 3) return match;
-      replacements.nom++;
-      return "[NOM]";
-    }
-  );
-
-  out = out.replace(
-    /\b(né|née|naissance)\s+(?:le\s+)?(?:\[DATE\]|\d+)/gi,
-    (match) => match.replace(/\d+/g, "[DATE]")
-  );
-
-  out = out.replace(
-    /\b\d{1,4}(?:\s?(?:bis|ter|quater))?\s+(?:rue|avenue|av\.|boulevard|bd\.|bd|place|pl\.|impasse|allée|route|rte\.|chemin|ch\.|quai|cours)\s+[A-ZÀ-ÖØ-Ýa-zà-öø-ÿ\-']+(?:\s+[A-ZÀ-ÖØ-Ýa-zà-öø-ÿ\-']+){0,5}/gi,
-    () => "[ADRESSE]"
-  );
-
-  const count = Object.values(replacements).reduce((a, b) => a + b, 0);
-  return { text: out, count, replacements };
-}
+const ROOT_MENU_ID = "assistant_medecin_root";
+const REOPEN_MENU_ID = "dachi_reopen_last";
+const SEPARATOR_MENU_ID = "dachi_separator";
+const STREAM_THROTTLE_MS = 80;
 
 // ---------------------------------------------------------------------------
-// 1. Définition des actions du menu contextuel
+// 1. Menu contextuel
 // ---------------------------------------------------------------------------
-const MENU_ITEMS = [
-  {
-    id: "corriger_reformuler",
-    title: "✏️ Corriger & Reformuler",
-    prompt: `Tu es un correcteur orthographique strict. Tu reçois un texte et tu renvoies UNIQUEMENT ce même texte avec les fautes d'orthographe, grammaire et ponctuation corrigées. Tu ne fais rien d'autre. Tu ne définis pas, tu n'expliques pas, tu n'ajoutes aucune information. Ta sortie a la même longueur que l'entrée.`,
-    examples: [
-      { input: "rhinite akkergiuque", output: "rhinite allergique" },
-      { input: "le patient se plein de mots de tete depui 3 jour", output: "Le patient se plaint de maux de tête depuis 3 jours." },
-      { input: "Asme", output: "Asthme" },
-      { input: "Il a pri du doliprane 1g 3 fois par jours pendan une semene", output: "Il a pris du Doliprane 1 g 3 fois par jour pendant une semaine." }
-    ]
-  },
-  {
-    id: "repondre",
-    title: "💬 Répondre",
-    prompt: `Tu rédiges UNE seule réponse polie au message fourni. Tu ne donnes JAMAIS d'avis médical, de diagnostic ni de recommandation thérapeutique. Tu ne fabriques aucune information absente du message d'origine. Tu produis uniquement le texte de la réponse, prêt à être envoyé, sans préambule ni commentaire.`,
-    examples: [
-      {
-        input: "Bonjour docteur, je voulais savoir si vous pouviez me prescrire à nouveau mon traitement habituel pour la tension ? Merci.",
-        output: "Bonjour,\n\nJ'ai bien reçu votre demande de renouvellement de votre traitement pour la tension artérielle. Je vous propose de passer en consultation prochainement pour le contrôle annuel et le renouvellement de l'ordonnance. N'hésitez pas à contacter le secrétariat pour fixer un rendez-vous.\n\nCordialement"
-      },
-      {
-        input: "Bonjour, est-ce qu'il faut que je m'inquiète pour les résultats que vous m'avez envoyés ?",
-        output: "Bonjour,\n\nJe vous remercie pour votre message. Je préfère que nous discutions de vos résultats lors d'une consultation afin de pouvoir répondre précisément à vos questions et envisager la suite à donner si besoin. Merci de contacter le secrétariat pour convenir d'un rendez-vous.\n\nCordialement"
-      },
-      {
-        input: "Merci docteur pour la consultation d'hier.",
-        output: "Bonjour,\n\nJe vous remercie pour votre message. N'hésitez pas à me recontacter si vous en éprouvez le besoin.\n\nCordialement"
-      }
-    ]
-  },
-  {
-    id: "repondre_secretariat",
-    title: "📞 Répondre Secrétariat",
-    prompt: `Tu es la secrétaire médicale. Tu rédiges UNE réponse polie au message patient, en vouvoyant toujours. Tu signes "Le secrétariat du Dr [NOM DU MÉDECIN]". Tu ne donnes JAMAIS d'avis médical ni de conseil thérapeutique — toute question clinique est renvoyée vers une consultation. Pour toute mention d'urgence, tu rediriges vers le 15 (SAMU) ou le 112. Tu n'inventes aucun horaire, tarif ou disponibilité. Tu produis uniquement le texte de la réponse, sans préambule.`,
-    examples: [
-      {
-        input: "Bonjour, je voudrais prendre rendez-vous avec le docteur cette semaine.",
-        output: "Bonjour,\n\nJe vous remercie pour votre message. Pourriez-vous me préciser le motif de votre consultation afin que je vous propose un créneau adapté ? Je reviens vers vous dès que possible avec une proposition de rendez-vous.\n\nCordialement,\nLe secrétariat du Dr [NOM DU MÉDECIN]"
-      },
-      {
-        input: "Bonjour, je voudrais le renouvellement de mon ordonnance habituelle.",
-        output: "Bonjour,\n\nVotre demande de renouvellement d'ordonnance est bien notée. Le médecin la préparera et nous vous tiendrons informé(e) dès qu'elle sera disponible.\n\nCordialement,\nLe secrétariat du Dr [NOM DU MÉDECIN]"
-      },
-      {
-        input: "Bonjour, j'ai une grosse douleur à la poitrine depuis ce matin, qu'est-ce que je dois faire ?",
-        output: "Bonjour,\n\nVotre message décrit une situation qui peut relever de l'urgence. Nous vous invitons à appeler **immédiatement le 15 (SAMU)** ou le 112. Ne restez pas sans avis médical en cas de symptôme aigu.\n\nCordialement,\nLe secrétariat du Dr [NOM DU MÉDECIN]"
-      },
-      {
-        input: "Est-ce que mes résultats de prise de sang sont arrivés ?",
-        output: "Bonjour,\n\nNous vérifions auprès du laboratoire et du médecin. Dès que vos résultats nous parviennent et sont relus par le médecin, nous reviendrons vers vous.\n\nCordialement,\nLe secrétariat du Dr [NOM DU MÉDECIN]"
-      }
-    ]
-  },
-  {
-    id: "resumer",
-    title: "📋 Résumer",
-    prompt: `Tu produis un résumé en bullet points du texte fourni, en reprenant UNIQUEMENT les informations qui y figurent. Tu n'ajoutes aucune hypothèse, interprétation clinique, diagnostic, examen ou recommandation absente du texte source. Tu ne formules aucune conclusion clinique propre. Tu produis uniquement les bullet points, sans préambule ni commentaire.`,
-    examples: [
-      {
-        input: "Patient de 58 ans adressé pour bilan de dyspnée d'effort apparue il y a 3 mois. Antécédents : HTA traitée par amlodipine. Tabagisme actif 30 paquets-années. ECG normal. Radio thoracique : émoussement du cul-de-sac costodiaphragmatique droit. Spirométrie : trouble ventilatoire obstructif modéré.",
-        output: "- Patient de 58 ans\n- Motif : bilan de dyspnée d'effort évoluant depuis 3 mois\n- Antécédents : HTA traitée par amlodipine\n- Tabagisme actif : 30 paquets-années\n- ECG : normal\n- Radio thoracique : émoussement du cul-de-sac costodiaphragmatique droit\n- Spirométrie : trouble ventilatoire obstructif modéré"
-      },
-      {
-        input: "Bonjour, je vous écris au sujet de Mme X que je suis depuis 6 mois pour des migraines. Elle a essayé le paracétamol puis l'ibuprofène sans succès. Les crises sont fréquentes (3 à 4 par semaine). Je souhaiterais votre avis neurologique.",
-        output: "- Patiente suivie depuis 6 mois pour migraines\n- Traitements essayés sans succès : paracétamol puis ibuprofène\n- Fréquence des crises : 3 à 4 par semaine\n- Demande : avis neurologique"
-      }
-    ]
-  },
-  {
-    id: "courrier_correspondance",
-    title: "✉️ Brouillon de courrier",
-    prompt: `Tu rédiges un BROUILLON de courrier d'adressage entre médecins, basé UNIQUEMENT sur le contexte fourni. Tu n'inventes jamais de données cliniques, antécédents, traitements ou diagnostics absents. Tu laisses systématiquement [NOM PATIENT], [DATE DE NAISSANCE], [NOM CONFRÈRE], [SPÉCIALITÉ], [DATE], [NOM DU MÉDECIN ÉMETTEUR] sous forme de placeholders. Tu n'ajoutes aucune recommandation thérapeutique propre. Tu termines TOUJOURS par la ligne exacte : [BROUILLON GÉNÉRÉ PAR IA — À RELIRE, CORRIGER ET VALIDER PAR LE MÉDECIN AVANT ENVOI]`,
-    examples: [
-      {
-        input: "Adresser à un cardiologue Mme Y, 62 ans, pour bilan de palpitations apparues il y a 1 mois, en contexte d'HTA traitée par ramipril.",
-        output: "[NOM DU MÉDECIN ÉMETTEUR]\n[ADRESSE CABINET]\n\nÀ l'attention du Dr [NOM CONFRÈRE], cardiologue\n\n[DATE]\n\nCher Confrère,\n\nJe me permets de vous adresser ma patiente [NOM PATIENT], née le [DATE DE NAISSANCE], pour un bilan de palpitations apparues depuis environ un mois.\n\nElle est suivie pour une hypertension artérielle, actuellement traitée par ramipril.\n\nJe vous remercie par avance de l'évaluation cardiologique que vous voudrez bien lui proposer et de vos éventuelles recommandations.\n\nVous remerciant de votre prise en charge,\nConfraternellement,\n\n[NOM DU MÉDECIN ÉMETTEUR]\n\n[BROUILLON GÉNÉRÉ PAR IA — À RELIRE, CORRIGER ET VALIDER PAR LE MÉDECIN AVANT ENVOI]"
-      },
-      {
-        input: "Demander un avis dermato pour un patient avec lésion cutanée du dos évoluant depuis 6 mois.",
-        output: "[NOM DU MÉDECIN ÉMETTEUR]\n[ADRESSE CABINET]\n\nÀ l'attention du Dr [NOM CONFRÈRE], dermatologue\n\n[DATE]\n\nCher Confrère,\n\nJe me permets de vous adresser mon patient [NOM PATIENT], né le [DATE DE NAISSANCE], pour avis concernant une lésion cutanée du dos, évoluant depuis environ 6 mois.\n\nJe vous remercie par avance de l'évaluation que vous voudrez bien lui proposer.\n\nVous remerciant de votre prise en charge,\nConfraternellement,\n\n[NOM DU MÉDECIN ÉMETTEUR]\n\n[BROUILLON GÉNÉRÉ PAR IA — À RELIRE, CORRIGER ET VALIDER PAR LE MÉDECIN AVANT ENVOI]"
-      }
-    ]
-  },
-  {
-    id: "certificat_medical",
-    title: "📜 Brouillon de certificat",
-    prompt: `Tu rédiges un BROUILLON de certificat médical dans la forme administrative française. Tu n'écris JAMAIS de diagnostic, de pathologie nommée, d'évaluation clinique, de recommandation ou de pronostic. Tu n'utilises que des constatations objectives. Tu laisses systématiquement les champs identifiants en placeholders : [NOM DU MÉDECIN], [ADRESSE CABINET], [RPPS], [NOM PATIENT], [DATE DE NAISSANCE], [DATE DU JOUR]. Tu inclus toujours la mention "Certificat établi à la demande de l'intéressé(e) et remis en main propre pour faire valoir ce que de droit." Tu termines TOUJOURS par la ligne exacte : [BROUILLON GÉNÉRÉ PAR IA — NON VALIDÉ — LE MÉDECIN EST SEUL RESPONSABLE DE LA RÉDACTION FINALE, DE SA CONFORMITÉ LÉGALE ET DE SA SIGNATURE]`,
-    examples: [
-      {
-        input: "Certificat de consultation simple.",
-        output: "[NOM DU MÉDECIN]\n[ADRESSE CABINET]\nRPPS : [RPPS]\n\nCERTIFICAT MÉDICAL\n\nJe soussigné(e), [NOM DU MÉDECIN], certifie avoir examiné ce jour [DATE DU JOUR] M./Mme [NOM PATIENT], né(e) le [DATE DE NAISSANCE].\n\nCertificat établi à la demande de l'intéressé(e) et remis en main propre pour faire valoir ce que de droit.\n\nFait à [VILLE], le [DATE DU JOUR].\n\n[NOM DU MÉDECIN]\n(signature et cachet)\n\n[BROUILLON GÉNÉRÉ PAR IA — NON VALIDÉ — LE MÉDECIN EST SEUL RESPONSABLE DE LA RÉDACTION FINALE, DE SA CONFORMITÉ LÉGALE ET DE SA SIGNATURE]"
-      },
-      {
-        input: "Certificat d'aptitude pour pratique sportive en club, après examen ce jour.",
-        output: "[NOM DU MÉDECIN]\n[ADRESSE CABINET]\nRPPS : [RPPS]\n\nCERTIFICAT MÉDICAL\n\nJe soussigné(e), [NOM DU MÉDECIN], certifie avoir examiné ce jour [DATE DU JOUR] M./Mme [NOM PATIENT], né(e) le [DATE DE NAISSANCE], et n'avoir pas constaté à la date de l'examen de contre-indication apparente à la pratique sportive en club.\n\nCertificat établi à la demande de l'intéressé(e) et remis en main propre pour faire valoir ce que de droit.\n\nFait à [VILLE], le [DATE DU JOUR].\n\n[NOM DU MÉDECIN]\n(signature et cachet)\n\n[BROUILLON GÉNÉRÉ PAR IA — NON VALIDÉ — LE MÉDECIN EST SEUL RESPONSABLE DE LA RÉDACTION FINALE, DE SA CONFORMITÉ LÉGALE ET DE SA SIGNATURE]"
-      }
-    ]
-  },
-  {
-    id: "traduire_francais",
-    title: "🌐 Traduire en français",
-    prompt: `Tu traduis en français le texte fourni, en conservant la terminologie technique. Tu n'expliques pas, tu ne paraphrases pas, tu n'ajoutes rien. Ta sortie a une longueur équivalente au texte source. Tu produis uniquement la traduction, sans préambule.`,
-    examples: [
-      { input: "The patient presents with acute chest pain.", output: "Le patient se présente avec une douleur thoracique aiguë." },
-      { input: "MRI shows a small lacunar infarct in the left thalamus.", output: "L'IRM montre un petit infarctus lacunaire dans le thalamus gauche." },
-      { input: "Hypertension", output: "Hypertension artérielle" }
-    ]
-  }
-];
-
-// Map pour accéder rapidement à un item par son id
-const MENU_MAP = new Map(MENU_ITEMS.map(item => [item.id, item]));
-
-// ---------------------------------------------------------------------------
-// 2. Construction dynamique du menu contextuel
-// ---------------------------------------------------------------------------
-
-/**
- * Reconstruit le menu contextuel depuis storage + defaults.
- * Verrou isBuilding pour éviter les appels concurrents (duplicate id).
- */
 let buildMenusPromise = null;
 function buildMenus() {
   // Chaîner les appels pour éviter tout doublon (pas de concurrence)
@@ -225,587 +30,684 @@ function buildMenus() {
   return buildMenusPromise;
 }
 
-// Registre en mémoire des IDs déjà créés dans ce Service Worker.
-// Évite tout appel `create()` sur un id existant (Chrome log un warning
-// "Cannot create item with duplicate id" même quand on passe un callback,
-// sur certaines versions). On utilise `update()` à la place.
 const createdMenuIds = new Set();
 
 function createOrUpdateMenu(props) {
   return new Promise(resolve => {
-    if (createdMenuIds.has(props.id)) {
-      // Déjà créé → update (titre/parent peut avoir changé)
-      const updateProps = { ...props };
-      delete updateProps.id;
-      delete updateProps.parentId; // parentId n'est pas modifiable via update
-      try {
-        chrome.contextMenus.update(props.id, updateProps, () => {
-          void chrome.runtime.lastError;
-          resolve();
-        });
-      } catch (_e) {
-        void chrome.runtime.lastError;
-        resolve();
-      }
-      return;
-    }
+    const { id, ...rest } = props;
+    const done = () => { void chrome.runtime.lastError; resolve(); };
     try {
-      chrome.contextMenus.create(props, () => {
-        if (chrome.runtime.lastError) {
-          // Si Chrome dit duplicate, on enregistre quand même comme "vu" et on tente l'update
-          if (/duplicate id/i.test(chrome.runtime.lastError.message || "")) {
-            createdMenuIds.add(props.id);
-            const updateProps = { ...props };
-            delete updateProps.id;
-            delete updateProps.parentId;
-            try {
-              chrome.contextMenus.update(props.id, updateProps, () => {
-                void chrome.runtime.lastError;
-                resolve();
-              });
-              return;
-            } catch (_e) { /* fallthrough */ }
-          }
-          void chrome.runtime.lastError;
-        } else {
-          createdMenuIds.add(props.id);
-        }
-        resolve();
-      });
+      if (createdMenuIds.has(id)) {
+        chrome.contextMenus.update(id, rest, done);
+      } else {
+        createdMenuIds.add(id);
+        chrome.contextMenus.create(props, done);
+      }
     } catch (_e) {
-      void chrome.runtime.lastError;
-      // Si la création synchrone a levé, marquer comme existant et tenter update au prochain coup
-      createdMenuIds.add(props.id);
       resolve();
     }
   });
 }
 
 async function _buildMenus() {
-  const { menuOverrides, customMenuItems } = await chrome.storage.sync.get({
-    menuOverrides: {},
-    customMenuItems: []
-  });
+  const config = await loadMenuConfig();
+  const items = resolveMenuItems(MENU_ITEMS, config);
 
-  // Vider proprement et réinitialiser notre registre
   await new Promise(resolve => chrome.contextMenus.removeAll(() => {
     void chrome.runtime.lastError;
     createdMenuIds.clear();
     resolve();
   }));
 
-  await createOrUpdateMenu({
-    id: "assistant_medecin_root",
-    title: "Dachi",
-    contexts: ["selection"]
-  });
+  await createOrUpdateMenu({ id: ROOT_MENU_ID, title: "Dachi", contexts: ["selection"] });
 
-  // Items par défaut (avec éventuels overrides)
-  for (const item of MENU_ITEMS) {
-    const ov = menuOverrides[item.id] || {};
-    if (ov.enabled === false) continue;
+  for (const item of items) {
+    if (!item.enabled) continue;
     await createOrUpdateMenu({
       id: item.id,
-      parentId: "assistant_medecin_root",
-      title: ov.title || item.title,
-      contexts: ["selection"]
-    });
-  }
-
-  // Items personnalisés
-  for (const item of (customMenuItems || [])) {
-    if (item.enabled === false) continue;
-    await createOrUpdateMenu({
-      id: item.id,
-      parentId: "assistant_medecin_root",
+      parentId: ROOT_MENU_ID,
       title: item.title,
       contexts: ["selection"]
     });
   }
+
+  await createOrUpdateMenu({ id: SEPARATOR_MENU_ID, parentId: ROOT_MENU_ID, type: "separator", contexts: ["selection"] });
+  await createOrUpdateMenu({
+    id: REOPEN_MENU_ID,
+    parentId: ROOT_MENU_ID,
+    title: "↩ Rouvrir le dernier résultat",
+    contexts: ["selection"]
+  });
 }
 
 chrome.runtime.onInstalled.addListener(() => buildMenus());
 chrome.runtime.onStartup.addListener(() => buildMenus());
 
-// Reconstruire le menu si les items changent dans storage
-chrome.storage.onChanged.addListener((changes) => {
-  if ("menuOverrides" in changes || "customMenuItems" in changes) {
-    buildMenus();
-  }
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "sync" && Object.keys(changes).some(isMenuKey)) buildMenus();
 });
 
 // ---------------------------------------------------------------------------
-// 3. Gestion du clic sur un item du menu
+// 2. Communication avec le content script
 // ---------------------------------------------------------------------------
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (!info.selectionText || info.menuItemId === "assistant_medecin_root") return;
 
-  // Résoudre le prompt depuis storage + defaults
-  const { menuOverrides, customMenuItems } = await chrome.storage.sync.get({
-    menuOverrides: {},
-    customMenuItems: []
-  });
+/** Envoie un message à l'onglet sans jamais lever (receveur absent → ignoré). */
+function safeSend(tabId, msg) {
+  try {
+    const p = chrome.tabs.sendMessage(tabId, msg);
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  } catch (_e) { /* ignore */ }
+}
 
-  const menuId = info.menuItemId;
-  let menuItem = null;
+async function sendAndWait(tabId, msg) {
+  try {
+    return await chrome.tabs.sendMessage(tabId, msg);
+  } catch (_e) {
+    return undefined;
+  }
+}
 
-  const defaultItem = MENU_ITEMS.find(m => m.id === menuId);
-  if (defaultItem) {
-    const ov = menuOverrides[menuId] || {};
-    menuItem = {
-      id: defaultItem.id,
-      title: ov.title || defaultItem.title,
-      prompt: ov.prompt || defaultItem.prompt,
-      // Si l'utilisateur a personnalisé des exemples via l'UI, on les utilise ;
-      // sinon, on retombe sur les exemples par défaut codés en dur.
-      examples: Array.isArray(ov.examples) ? ov.examples : (defaultItem.examples || [])
+/**
+ * Injecte CSS + content script puis attend qu'il réponde au ping
+ * (remplace l'ancienne attente fixe de 150 ms). Lève NO_CONTENT_SCRIPT si
+ * l'onglet est inaccessible (chrome://, Web Store, PDF…).
+ */
+let contentCssPromise = null;
+function getContentCss() {
+  if (!contentCssPromise) {
+    contentCssPromise = fetch(chrome.runtime.getURL("content.css")).then(r => r.text()).catch(() => "");
+  }
+  return contentCssPromise;
+}
+
+async function ensureContentScript(tabId) {
+  try {
+    // Le CSS est déposé dans le monde isolé (globalThis partagé entre les
+    // executeScript de l'extension) : content.js le place dans son Shadow DOM
+    // fermé, hors de portée des scripts de la page.
+    const css = await getContentCss();
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (cssText) => { globalThis.__DACHI_CSS = cssText; },
+      args: [css]
+    });
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+  } catch (e) {
+    throw new Error(`NO_CONTENT_SCRIPT: ${e.message}`);
+  }
+  for (let i = 0; i < 20; i++) {
+    const res = await sendAndWait(tabId, { action: "ping" });
+    if (res && res.pong) return;
+    await sleep(50);
+  }
+  throw new Error("NO_CONTENT_SCRIPT: le script de page ne répond pas");
+}
+
+/** Texte sélectionné avec ses retours à la ligne (info.selectionText les aplatit). */
+async function getSelectionFromTab(tabId, fallback) {
+  const res = await sendAndWait(tabId, { action: "getSelection" });
+  const text = res && typeof res.text === "string" ? res.text : "";
+  return text.trim() ? text : (fallback || "");
+}
+
+// ---------------------------------------------------------------------------
+// 3. Résolution d'une action (défaut + override, ou perso)
+// ---------------------------------------------------------------------------
+async function resolveMenuItem(menuId) {
+  const config = await loadMenuConfig();
+  return resolveMenuItems(MENU_ITEMS, config).find(m => m.id === menuId) || null;
+}
+
+// ---------------------------------------------------------------------------
+// 4. Pipeline : sélection → anonymisation → (aperçu) → API → ré-identification
+// ---------------------------------------------------------------------------
+
+/** Point d'entrée commun (menu contextuel, raccourci clavier). */
+async function startAction({ tabId, menuId, fallbackText }) {
+  let item = null;
+  try {
+    item = await resolveMenuItem(menuId);
+    if (!item) return;
+
+    await ensureContentScript(tabId);
+    const text = await getSelectionFromTab(tabId, fallbackText);
+    if (!text.trim()) {
+      safeSend(tabId, { phase: "toast", message: "Sélectionnez d'abord du texte.", isError: true });
+      return;
+    }
+
+    const settings = await loadSettings();
+    if (settings.cguAccepted !== "1.0") {
+      chrome.runtime.openOptionsPage();
+      throw new Error("CGU_NOT_ACCEPTED");
+    }
+
+    // Anonymisation locale
+    let anonymization = { enabled: false, count: 0, replacements: {} };
+    let processed = text;
+    let map = {};
+    if (settings.anonymizeEnabled) {
+      const r = anonymizeText(text, { customAcronyms: parseAcronymList(settings.customAcronyms) });
+      processed = r.text;
+      map = r.map;
+      anonymization = { enabled: true, count: r.count, replacements: r.replacements };
+    }
+
+    const request = { menuId: item.id, title: item.title, text: processed, anonymization, map };
+
+    if (settings.confirmBeforeSend) {
+      // L'utilisateur relit / corrige le texte anonymisé, puis renvoie `runAction`.
+      safeSend(tabId, { phase: "preview", title: item.title, request });
+      return;
+    }
+
+    await runGeneration({ tabId, item, request, settings });
+  } catch (error) {
+    safeSend(tabId, { phase: "error", title: item ? item.title : "Dachi", error: error.message });
+  }
+}
+
+/**
+ * Appel API + streaming + ré-identification. `request` = { menuId, title, text
+ * (déjà anonymisé), anonymization, map, extraInstruction?, previousResult? }.
+ */
+async function runGeneration({ tabId, item, request, settings }) {
+  try {
+    settings = settings || await loadSettings();
+    item = item || await resolveMenuItem(request.menuId);
+    if (!item) throw new Error("API_ERROR: action inconnue");
+
+    safeSend(tabId, { phase: "loading", title: item.title });
+
+    const map = request.map || {};
+    const rehydrate = (text) => settings.rehydrateEnabled ? rehydrateText(text, map) : { text, restored: 0 };
+
+    // Streaming : on pousse le texte partiel (ré-identifié) à intervalle régulier
+    let lastPush = 0;
+    let pending = null;
+    const onChunk = (partial) => {
+      const now = Date.now();
+      if (now - lastPush >= STREAM_THROTTLE_MS) {
+        lastPush = now;
+        if (pending) { clearTimeout(pending); pending = null; }
+        safeSend(tabId, { phase: "stream", title: item.title, partial: rehydrate(partial).text });
+      } else if (!pending) {
+        pending = setTimeout(() => { pending = null; onChunk(partial); }, STREAM_THROTTLE_MS);
+      }
     };
-  } else {
-    menuItem = (customMenuItems || []).find(m => m.id === menuId);
+
+    const { text, finishReason, usage } = await callAI(settings, item, request, settings.streamEnabled ? onChunk : null);
+    if (pending) { clearTimeout(pending); pending = null; }
+
+    if (!text || !text.trim()) throw new Error("EMPTY_RESPONSE");
+
+    const final = rehydrate(text);
+    safeSend(tabId, {
+      phase: "result",
+      title: item.title,
+      result: final.text,
+      anonymization: request.anonymization,
+      rehydration: { enabled: !!settings.rehydrateEnabled, restored: final.restored },
+      truncated: finishReason === "length",
+      usage: usageSummary(usage, settings.maxTokens || DEFAULT_SETTINGS.maxTokens),
+      request: { menuId: request.menuId, title: item.title, text: request.text, anonymization: request.anonymization, map }
+    });
+  } catch (error) {
+    safeSend(tabId, { phase: "error", title: item ? item.title : "Dachi", error: error.message });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 5. Construction des messages et appel fournisseur
+// ---------------------------------------------------------------------------
+function buildMessages(settings, item, request) {
+  let system = item.prompt;
+  if (settings.doctorContext && settings.doctorContext.trim()) {
+    system = `Contexte du médecin : ${settings.doctorContext.trim()}\n\n${system}`;
+  }
+  const extra = (request.extraInstruction || "").trim();
+  if (extra && !request.previousResult) {
+    system += `\n\nConsigne supplémentaire du médecin : ${extra}`;
   }
 
-  if (!menuItem) return;
+  const messages = [{ role: "system", content: system }];
+  for (const ex of item.examples || []) {
+    if (ex.input && ex.output) {
+      messages.push({ role: "user", content: ex.input });
+      messages.push({ role: "assistant", content: ex.output });
+    }
+  }
+  messages.push({ role: "user", content: request.text });
 
-  // Helper : envoie un message au content script sans jamais lever d'exception
-  // (la promesse retournée par sendMessage rejette si le receveur n'écoute pas,
-  // p. ex. page restreinte chrome://, page non rechargée après update extension,
-  // ou content script pas encore initialisé). On consomme silencieusement.
-  const safeSend = (msg) => {
-    try {
-      const p = chrome.tabs.sendMessage(tab.id, msg);
-      if (p && typeof p.catch === "function") {
-        p.catch(() => { /* receveur absent : on ignore */ });
-      }
-    } catch (_e) { /* ignore */ }
+  // Affiner : on repart de la réponse précédente
+  if (extra && request.previousResult) {
+    messages.push({ role: "assistant", content: request.previousResult });
+    messages.push({ role: "user", content: `Reprends ta réponse précédente en appliquant cette consigne : ${extra}. Renvoie uniquement le texte final, sans commentaire.` });
+  }
+  return messages;
+}
+
+/** Paramètres de requête selon le fournisseur (vérifie la configuration). */
+async function providerRequest(settings) {
+  switch (settings.provider) {
+    case "scaleway": {
+      if (!settings.scalewayApiKey) throw new Error("NO_API_KEY_SCALEWAY");
+      if (!settings.scalewayProjectId) throw new Error("NO_PROJECT_ID_SCALEWAY");
+      if (!settings.scalewayModel) throw new Error("NO_MODEL_SCALEWAY");
+      return {
+        url: `https://api.scaleway.ai/${settings.scalewayProjectId}/v1/chat/completions`,
+        modelsUrl: `https://api.scaleway.ai/${settings.scalewayProjectId}/v1/models`,
+        headers: { "Authorization": `Bearer ${settings.scalewayApiKey}`, "Content-Type": "application/json" },
+        model: settings.scalewayModel,
+        maxTokens: settings.maxTokens || DEFAULT_SETTINGS.maxTokens,
+        timeoutMs: 45000,
+        isLocal: false,
+        // Modèles à raisonnement (gpt-oss, *-thinking, magistral) : effort réduit,
+        // sinon le budget de réponse part en raisonnement interne.
+        adaptBody: (b) => /gpt-oss|thinking|magistral/i.test(b.model) ? { ...b, reasoning_effort: "low" } : b
+      };
+    }
+    case "local": {
+      if (!settings.localServerUrl) throw new Error("NO_LOCAL_URL");
+      if (!settings.localModel) throw new Error("NO_LOCAL_MODEL");
+      const base = settings.localServerUrl.replace(/\/+$/, "");
+      if (!(await hasRemoteOriginPermission(base))) throw new Error("LOCAL_PERMISSION_DENIED");
+      const headers = { "Content-Type": "application/json" };
+      if (settings.localRequireKey && settings.localApiKey) headers["Authorization"] = `Bearer ${settings.localApiKey}`;
+      return {
+        url: `${base}/chat/completions`,
+        modelsUrl: `${base}/models`,
+        headers,
+        model: settings.localModel,
+        maxTokens: settings.maxTokens || DEFAULT_SETTINGS.maxTokens,
+        timeoutMs: 60000,
+        isLocal: true
+      };
+    }
+    case "openai": {
+      if (!settings.apiKey) throw new Error("NO_API_KEY");
+      return {
+        url: "https://api.openai.com/v1/chat/completions",
+        modelsUrl: "https://api.openai.com/v1/models",
+        headers: { "Authorization": `Bearer ${settings.apiKey}`, "Content-Type": "application/json" },
+        model: settings.model || DEFAULT_SETTINGS.model,
+        maxTokens: settings.maxTokens || DEFAULT_SETTINGS.maxTokens,
+        timeoutMs: 45000,
+        isLocal: false,
+        usageInStream: true,
+        adaptBody: adaptOpenAIBody
+      };
+    }
+    case "openrouter": {
+      if (!settings.openrouterApiKey) throw new Error("NO_API_KEY_OPENROUTER");
+      if (!settings.openrouterModel) throw new Error("NO_MODEL_OPENROUTER");
+      const openrouterModel = await resolveOpenRouterModel(settings.openrouterModel);
+      return {
+        url: "https://openrouter.ai/api/v1/chat/completions",
+        modelsUrl: "https://openrouter.ai/api/v1/models",
+        headers: {
+          "Authorization": `Bearer ${settings.openrouterApiKey}`,
+          "Content-Type": "application/json",
+          // Attribution facultative dans le tableau de bord OpenRouter
+          "X-Title": "Dachi"
+        },
+        model: openrouterModel,
+        maxTokens: settings.maxTokens || DEFAULT_SETTINGS.maxTokens,
+        timeoutMs: 60000,
+        isLocal: false,
+        // Refuse le routage vers les fournisseurs qui conservent / entraînent sur les données
+        extraBody: { provider: { data_collection: "deny" }, reasoning: { effort: "low" } },
+        // Les fournisseurs OpenAI-compatibles renvoient l'usage en fin de flux si demandé
+        usageInStream: true
+      };
+    }
+    default:
+      throw new Error("NO_PROVIDER");
+  }
+}
+
+/**
+ * Corps de requête pour l'API OpenAI :
+ * - `max_completion_tokens` remplace `max_tokens` (obligatoire sur GPT-5 / o-series,
+ *   accepté par tous les modèles récents) ;
+ * - les modèles à raisonnement refusent `temperature` ≠ 1 → on l'omet et on
+ *   demande un raisonnement faible (rapide, économique, suffisant pour rédiger).
+ */
+function adaptOpenAIBody(body) {
+  const { max_tokens, temperature, ...rest } = body;
+  const isReasoning = /^(o\d|gpt-[5-9])/i.test(body.model) && !/chat/i.test(body.model);
+  return {
+    ...rest,
+    max_completion_tokens: max_tokens,
+    ...(isReasoning ? { reasoning_effort: "low" } : { temperature })
   };
+}
+
+async function callAI(settings, item, request, onChunk) {
+  const req = await providerRequest(settings);
+  const body = {
+    model: req.model,
+    temperature: settings.temperature,
+    max_tokens: req.maxTokens,
+    messages: buildMessages(settings, item, request),
+    ...(req.extraBody || {})
+  };
+  const finalBody = req.adaptBody ? req.adaptBody(body) : body;
+
+  // Une seule nouvelle tentative, uniquement si rien n'a encore été reçu
+  let received = false;
+  const wrappedChunk = onChunk ? (t) => { received = true; onChunk(t); } : null;
+  try {
+    return await chatCompletion({ ...req, body: finalBody, onChunk: wrappedChunk });
+  } catch (error) {
+    if (!received && isRetryableError(error)) {
+      await sleep(1500);
+      return await chatCompletion({ ...req, body: finalBody, onChunk: wrappedChunk });
+    }
+    throw error;
+  }
+}
+
+/**
+ * Appel chat/completions générique (OpenAI-compatible) avec streaming SSE.
+ * Le timeout est un timeout d'inactivité : il est réarmé à chaque chunk reçu.
+ */
+async function chatCompletion({ url, headers, body, timeoutMs, isLocal, onChunk, usageInStream }) {
+  const controller = new AbortController();
+  let timer = setTimeout(() => controller.abort(), timeoutMs);
+  const rearm = () => { clearTimeout(timer); timer = setTimeout(() => controller.abort(), timeoutMs); };
+  const stream = typeof onChunk === "function";
 
   try {
-    // Injecter le CSS puis le JS dans l'onglet actif
-    await chrome.scripting.insertCSS({
-      target: { tabId: tab.id },
-      files: ["content.css"]
-    }).catch(() => {});
-
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ["content.js"]
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(stream
+        ? { ...body, stream: true, ...(usageInStream ? { stream_options: { include_usage: true } } : {}) }
+        : body),
+      signal: controller.signal
     });
 
-    // Petite pause pour laisser le content script s'initialiser
-    await new Promise(r => setTimeout(r, 150));
+    if (!response.ok) await throwHttpError(response);
 
-    // Envoyer le message au content script pour afficher le loader
-    safeSend({
-      action: menuItem.id,
-      title: menuItem.title,
-      text: info.selectionText,
-      phase: "loading"
-    });
+    const ctype = response.headers.get("content-type") || "";
+    if (stream && ctype.includes("text/event-stream") && response.body) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      const parser = createSSEParser();
+      let text = "";
+      let finishReason = null;
+      let usage = null;
+      const consume = (events) => {
+        for (const data of events) {
+          if (data === "[DONE]") continue;
+          let payload;
+          try { payload = JSON.parse(data); } catch (_) { continue; }
+          if (payload && payload.usage) usage = payload.usage;
+          const { text: piece, finishReason: fr } = deltaContentOf(payload);
+          if (fr) finishReason = fr;
+          if (piece) { text += piece; onChunk(text); }
+        }
+      };
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        rearm();
+        consume(parser.push(decoder.decode(value, { stream: true })));
+      }
+      consume(parser.flush());
+      return { text, finishReason, usage };
+    }
 
-    // Appeler l'API via la fonction abstraite (retourne le résultat + infos anonymisation)
-    const { result, anonymization } = await callAI(menuItem.prompt, info.selectionText, menuItem.examples);
-
-    // Envoyer la réponse au content script
-    safeSend({
-      action: menuItem.id,
-      title: menuItem.title,
-      text: info.selectionText,
-      phase: "result",
-      result: result,
-      anonymization: anonymization
-    });
-
+    // Réponse JSON classique (serveur sans streaming, ou streaming désactivé)
+    const data = await response.json();
+    const choice = data.choices && data.choices[0];
+    const msg = choice && choice.message;
+    const text = (msg && (msg.content || msg.reasoning_content || msg.reasoning)) || "";
+    return { text, finishReason: (choice && choice.finish_reason) || null, usage: data.usage || null };
   } catch (error) {
-    // Envoyer l'erreur au content script
-    safeSend({
-      action: menuItem.id,
-      title: menuItem.title,
-      phase: "error",
-      error: error.message
-    });
+    throw normalizeFetchError(error, isLocal);
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+/** Résumé d'usage pour le bandeau « réponse tronquée » : jetons générés / plafond / raisonnement. */
+function usageSummary(usage, maxTokens) {
+  if (!usage) return { maxTokens };
+  const completion = Number(usage.completion_tokens) || 0;
+  const details = usage.completion_tokens_details || {};
+  const reasoning = Number(details.reasoning_tokens) || 0;
+  return { maxTokens, completion, reasoning };
+}
+
+async function readErrorBody(response) {
+  try {
+    const data = await response.json();
+    return data.error?.message || data.message || data.detail || JSON.stringify(data);
+  } catch (_) {
+    try { return await response.text(); } catch (_) { return ""; }
+  }
+}
+
+async function throwHttpError(response) {
+  const status = response.status;
+  const msg = (await readErrorBody(response)).slice(0, 300);
+  if (status === 401 || status === 403) throw new Error(`API_KEY_INVALID: HTTP ${status} — ${msg}`);
+  if (status === 429) throw new Error(`RATE_LIMITED: HTTP 429 — ${msg}`);
+  if (status >= 500) throw new Error(`SERVER_ERROR: HTTP ${status} — ${msg}`);
+  throw new Error(`API_ERROR: HTTP ${status} — ${msg}`);
+}
+
+function normalizeFetchError(error, isLocal) {
+  if (error && error.name === "AbortError") return new Error("TIMEOUT");
+  if (isKnownError(error)) return error;
+  if (isLocal && error && error.name === "TypeError") return new Error("LOCAL_CONNECTION_REFUSED");
+  return new Error(`NETWORK_ERROR: ${error && error.message ? error.message : "inconnu"}`);
+}
+
+/**
+ * OpenRouter n'accepte que des identifiants « fournisseur/modèle ». Si
+ * l'utilisateur a saisi un nom d'affichage (« Ling 3.0 Flash VL »), on le
+ * résout via le catalogue mis en cache par la page d'options.
+ */
+async function resolveOpenRouterModel(input) {
+  const value = String(input || "").trim();
+  if (value.includes("/")) return value;
+  try {
+    const { modelCache_openrouter: cache } = await chrome.storage.local.get("modelCache_openrouter");
+    return resolveModelId(value, cache) || value;
+  } catch (_) {
+    return value;
+  }
+}
+
+async function hasRemoteOriginPermission(urlString) {
+  const pattern = remoteOriginPattern(urlString);
+  if (!pattern) return true;
+  try {
+    return await chrome.permissions.contains({ origins: [pattern] });
+  } catch (_) {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 6. Événements : menu contextuel, raccourci clavier, icône
+// ---------------------------------------------------------------------------
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (!tab || tab.id == null) return;
+  if (info.menuItemId === ROOT_MENU_ID || info.menuItemId === SEPARATOR_MENU_ID) return;
+
+  if (info.menuItemId === REOPEN_MENU_ID) {
+    try {
+      await ensureContentScript(tab.id);
+      safeSend(tab.id, { phase: "reopen" });
+    } catch (_) { /* onglet inaccessible */ }
+    return;
+  }
+
+  if (!info.selectionText) return;
+  await startAction({ tabId: tab.id, menuId: String(info.menuItemId), fallbackText: info.selectionText });
 });
 
-// ---------------------------------------------------------------------------
-// 4. Clic sur l'icône de l'extension → ouvre les options
-// ---------------------------------------------------------------------------
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command !== "quick-action") return;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab || tab.id == null) return;
+  const settings = await loadSettings();
+  await startAction({ tabId: tab.id, menuId: settings.quickActionId || DEFAULT_SETTINGS.quickActionId, fallbackText: "" });
+});
+
 chrome.action.onClicked.addListener(() => {
   chrome.runtime.openOptionsPage();
 });
 
 // ---------------------------------------------------------------------------
-// 5. Écouter les messages du content script
+// 7. Messages (content script + page d'options)
 // ---------------------------------------------------------------------------
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === "openOptions") {
-    chrome.runtime.openOptionsPage();
-    sendResponse({ ok: true });
-  }
-  if (message.action === "testConnection") {
-    testLocalConnection(message.config)
-      .then(result => sendResponse(result))
-      .catch(err => sendResponse({ ok: false, error: err.message }));
+  const respond = (promise) => {
+    promise.then(sendResponse).catch(err => sendResponse({ ok: false, error: err.message }));
     return true;
-  }
-  if (message.action === "testScaleway") {
-    testScalewayConnection(message.config)
-      .then(result => sendResponse(result))
-      .catch(err => sendResponse({ ok: false, error: err.message }));
-    return true;
-  }
-  if (message.action === "rebuildMenus") {
-    buildMenus().then(() => sendResponse({ ok: true }));
-    return true;
+  };
+
+  switch (message && message.action) {
+    case "openOptions":
+      chrome.runtime.openOptionsPage();
+      sendResponse({ ok: true });
+      return false;
+
+    case "runAction": {
+      // Depuis le content script : aperçu validé, régénérer, affiner
+      const tabId = sender.tab && sender.tab.id;
+      if (tabId == null) { sendResponse({ ok: false }); return false; }
+      runGeneration({ tabId, item: null, request: message.request, settings: null });
+      sendResponse({ ok: true });
+      return false;
+    }
+
+    case "testConnection":
+      return respond(testLocalConnection(message.config));
+
+    case "testScaleway":
+      return respond(testChatConnection("scaleway", message.config));
+
+    case "testOpenRouter":
+      return respond(testChatConnection("openrouter", message.config));
+
+    case "listModels":
+      return respond(listModels(message.provider, message.config));
+
+    case "rebuildMenus":
+      return respond(buildMenus().then(() => ({ ok: true })));
+
+    default:
+      return false;
   }
 });
 
 // ---------------------------------------------------------------------------
-// 6. Fonction abstraite callAI — supporte les 3 fournisseurs
+// 8. Tests de connexion et liste des modèles (page d'options)
 // ---------------------------------------------------------------------------
-async function callAI(systemPrompt, userText, examples) {
-  // Vérifier l'acceptation des CGU avant tout appel API
-  const cgu = await chrome.storage.sync.get({ cguAccepted: "" });
-  if (cgu.cguAccepted !== "1.0") {
-    chrome.runtime.openOptionsPage();
-    throw new Error("CGU_NOT_ACCEPTED");
-  }
-
-  const options = await chrome.storage.sync.get({
-    provider: "scaleway",
-    // Scaleway HDS
-    scalewayApiKey: "",
-    scalewayProjectId: "",
-    scalewayModel: "mistral-small-3.2-24b-instruct-2506",
-    // Serveur local
-    localServerUrl: "http://localhost:11434/v1",
-    localModel: "llama3",
-    localRequireKey: false,
-    localApiKey: "",
-    // OpenAI Direct
-    apiKey: "",
-    // Commun
-    model: "gpt-4o",
-    temperature: 0.1,
-    doctorContext: "",
-    // Anonymisation
-    anonymizeEnabled: true
-  });
-
-  // Anonymisation automatique du texte utilisateur avant envoi à l'API
-  let anonymization = { enabled: false, count: 0, replacements: {} };
-  let processedText = userText;
-  if (options.anonymizeEnabled) {
-    const result = anonymizeText(userText);
-    processedText = result.text;
-    anonymization = {
-      enabled: true,
-      count: result.count,
-      replacements: result.replacements
-    };
-  }
-
-  // Injecter le contexte médecin s'il existe
-  let fullSystemPrompt = systemPrompt;
-  if (options.doctorContext && options.doctorContext.trim()) {
-    fullSystemPrompt = `Contexte du médecin : ${options.doctorContext.trim()}\n\n${systemPrompt}`;
-  }
-
-  // Construction des messages avec few-shot examples si présents.
-  // Le few-shot (alternance user/assistant) est la technique la plus fiable
-  // pour contraindre le comportement des modèles open-source (Mistral, GPT-OSS).
-  const messages = [
-    { role: "system", content: fullSystemPrompt }
-  ];
-
-  if (Array.isArray(examples)) {
-    for (const ex of examples) {
-      if (ex.input && ex.output) {
-        messages.push({ role: "user", content: ex.input });
-        messages.push({ role: "assistant", content: ex.output });
-      }
-    }
-  }
-
-  messages.push({ role: "user", content: processedText });
-
-  let result;
-  switch (options.provider) {
-    case "scaleway":
-      result = await callScaleway(options, messages);
-      break;
-    case "local":
-      result = await callLocal(options, messages);
-      break;
-    case "openai":
-      result = await callOpenAIDirect(options, messages);
-      break;
-    default:
-      throw new Error("NO_PROVIDER");
-  }
-
-  return { result, anonymization };
-}
-
-// ---------------------------------------------------------------------------
-// 7. Scaleway Generative APIs (HDS — France)
-// ---------------------------------------------------------------------------
-async function callScaleway(options, messages) {
-  if (!options.scalewayApiKey) throw new Error("NO_API_KEY_SCALEWAY");
-  if (!options.scalewayProjectId) throw new Error("NO_PROJECT_ID_SCALEWAY");
-  if (!options.scalewayModel) throw new Error("NO_MODEL_SCALEWAY");
-
-  const body = {
-    model: options.scalewayModel,
-    temperature: options.temperature,
-    max_tokens: 1500,
-    messages: messages
-  };
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 45000);
-
-  const endpoint = `https://api.scaleway.ai/${options.scalewayProjectId}/v1/chat/completions`;
+/** Test d'un fournisseur distant (Scaleway, OpenRouter) : mini chat completion. */
+async function testChatConnection(provider, config) {
+  const settings = { ...DEFAULT_SETTINGS, ...config, provider };
+  let req;
+  try { req = await providerRequest(settings); } catch (e) { return { ok: false, error: errorLabel(e.message) }; }
 
   try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${options.scalewayApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal
+    const { text } = await chatCompletion({
+      ...req,
+      timeoutMs: 20000,
+      body: (req.adaptBody || ((b) => b))({
+        model: req.model, temperature: 0.1, max_tokens: 20,
+        messages: [{ role: "system", content: "Réponds simplement 'OK'." }, { role: "user", content: "ping" }],
+        ...(req.extraBody || {})
+      })
     });
-
-    clearTimeout(timeoutId);
-    return await handleResponse(response);
-  } catch (error) {
-    clearTimeout(timeoutId);
-    throw handleFetchError(error);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// 10. Serveur local (Ollama / LM Studio / etc.)
-// ---------------------------------------------------------------------------
-async function callLocal(options, messages) {
-  if (!options.localServerUrl) throw new Error("NO_LOCAL_URL");
-  if (!options.localModel) throw new Error("NO_LOCAL_MODEL");
-
-  const baseUrl = options.localServerUrl.replace(/\/+$/, "");
-  const apiUrl = `${baseUrl}/chat/completions`;
-
-  const headers = { "Content-Type": "application/json" };
-  if (options.localRequireKey && options.localApiKey) {
-    headers["Authorization"] = `Bearer ${options.localApiKey}`;
-  }
-
-  const body = {
-    model: options.localModel,
-    temperature: options.temperature,
-    max_tokens: 2000,
-    messages: messages
-  };
-
-  // Timeout 60s pour les modèles locaux (plus lents)
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60000);
-
-  try {
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-    return await handleResponse(response);
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error.name === "TypeError" && error.message.includes("Failed to fetch")) {
-      throw new Error("LOCAL_CONNECTION_REFUSED");
+    if (text) return { ok: true, info: `Connexion réussie — modèle « ${req.model} » a répondu « ${String(text).trim().slice(0, 60)} »` };
+    return { ok: false, error: "Connexion OK mais réponse vide (modèle inadapté ?)" };
+  } catch (e) {
+    let label = errorLabel(e.message);
+    if (/not a valid model/i.test(e.message)) {
+      label += " — utilisez l'identifiant « fournisseur/modèle » (cliquez sur « Actualiser » puis choisissez dans la liste).";
     }
-    throw handleFetchError(error);
+    return { ok: false, error: label };
   }
 }
 
-// ---------------------------------------------------------------------------
-// 11. OpenAI Direct
-// ---------------------------------------------------------------------------
-async function callOpenAIDirect(options, messages) {
-  if (!options.apiKey) throw new Error("NO_API_KEY");
-
-  const body = {
-    model: options.model,
-    temperature: options.temperature,
-    max_tokens: 2000,
-    messages: messages
-  };
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
-
-  try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${options.apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-    return await handleResponse(response);
-  } catch (error) {
-    clearTimeout(timeoutId);
-    throw handleFetchError(error);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// 12. Helpers — gestion réponse et erreurs
-// ---------------------------------------------------------------------------
-async function handleResponse(response) {
-  if (!response.ok) {
-    const status = response.status;
-    // Tenter d'extraire le vrai message d'erreur du body (utile pour debug Scaleway)
-    let bodyMsg = "";
-    try {
-      const errorData = await response.json();
-      bodyMsg = errorData.error?.message || errorData.message || errorData.detail || JSON.stringify(errorData);
-    } catch (_) {
-      try { bodyMsg = await response.text(); } catch (_) {}
-    }
-    if (status === 401) throw new Error(`API_KEY_INVALID: HTTP 401 — ${bodyMsg}`);
-    if (status === 429) throw new Error("RATE_LIMITED");
-    if (status >= 500) throw new Error(`SERVER_ERROR: HTTP ${status} — ${bodyMsg}`);
-    throw new Error(`API_ERROR: HTTP ${status} — ${bodyMsg}`);
-  }
-  const data = await response.json();
-  const msg = data.choices?.[0]?.message;
-  return msg?.content || "Aucune réponse générée.";
-}
-
-function handleFetchError(error) {
-  if (error.name === "AbortError") return new Error("TIMEOUT");
-  if (error.message.startsWith("API_") || error.message.startsWith("NO_") ||
-      error.message === "RATE_LIMITED" || error.message === "SERVER_ERROR" ||
-      error.message === "TIMEOUT" || error.message === "INVALID_AZURE_ENDPOINT" ||
-      error.message === "LOCAL_CONNECTION_REFUSED" || error.message === "NO_API_KEY_SCALEWAY" ||
-      error.message === "NO_PROJECT_ID_SCALEWAY" ||
-      error.message === "NO_MODEL_SCALEWAY" || error.message === "CGU_NOT_ACCEPTED") {
-    return error;
-  }
-  return new Error("NETWORK_ERROR");
-}
-
-// ---------------------------------------------------------------------------
-// 13bis. Test connexion Scaleway (appelé depuis options.js)
-// ---------------------------------------------------------------------------
-async function testScalewayConnection(config) {
-  const apiKey = (config.scalewayApiKey || "").trim();
-  const projectId = (config.scalewayProjectId || "").trim();
-  const model = (config.scalewayModel || "").trim();
-
-  if (!apiKey) return { ok: false, error: "Clé API Scaleway manquante." };
-  if (!projectId) return { ok: false, error: "ID de projet Scaleway manquant." };
-  if (!model) return { ok: false, error: "Modèle Scaleway non sélectionné." };
-
-  const endpoint = `https://api.scaleway.ai/${projectId}/v1/chat/completions`;
-  const body = {
-    model,
-    temperature: 0.1,
-    max_tokens: 2000,
-    messages: [
-      { role: "system", content: "Réponds simplement 'OK'." },
-      { role: "user", content: "ping" }
-    ]
-  };
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-  try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-
-    if (response.ok) {
-      const data = await response.json().catch(() => ({}));
-      const m = data.choices?.[0]?.message;
-      const finishReason = data.choices?.[0]?.finish_reason;
-      const usage = data.usage;
-      const reply = m?.content || m?.reasoning;
-      if (reply) {
-        return { ok: true, info: `Connexion réussie. Modèle "${model}" — réponse : "${String(reply).slice(0, 120)}"` };
-      }
-      // Pas de contenu : on renvoie un dump pour debug
-      return {
-        ok: false,
-        error: `Connexion OK mais réponse vide. finish_reason=${finishReason}, usage=${JSON.stringify(usage)}, message=${JSON.stringify(m)}, raw=${JSON.stringify(data).slice(0, 800)}`
-      };
-    }
-
-    // Récupérer le vrai message d'erreur
-    let bodyMsg = "";
-    try {
-      const errorData = await response.json();
-      bodyMsg = errorData.error?.message || errorData.message || errorData.detail || JSON.stringify(errorData);
-    } catch (_) {
-      try { bodyMsg = await response.text(); } catch (_) {}
-    }
-    return {
-      ok: false,
-      error: `HTTP ${response.status} — ${bodyMsg || "erreur inconnue"}`,
-      endpoint
-    };
-  } catch (error) {
-    clearTimeout(timeoutId);
-    if (error.name === "AbortError") {
-      return { ok: false, error: "Délai dépassé (15 s)." };
-    }
-    return { ok: false, error: `Réseau : ${error.message}` };
-  }
-}
-
-// ---------------------------------------------------------------------------
-// 13. Test connexion serveur local (appelé depuis options.js)
-// ---------------------------------------------------------------------------
 async function testLocalConnection(config) {
-  const baseUrl = (config.localServerUrl || "http://localhost:11434/v1").replace(/\/+$/, "");
-  const headers = { "Content-Type": "application/json" };
-  if (config.localRequireKey && config.localApiKey) {
-    headers["Authorization"] = `Bearer ${config.localApiKey}`;
-  }
+  const settings = { ...DEFAULT_SETTINGS, provider: "local", ...config, localModel: config.localModel || "x" };
+  let req;
+  try { req = await providerRequest(settings); } catch (e) { return { ok: false, error: errorLabel(e.message) }; }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
-
   try {
-    const response = await fetch(`${baseUrl}/models`, {
-      method: "GET",
-      headers: headers,
-      signal: controller.signal
-    });
+    const response = await fetch(req.modelsUrl, { method: "GET", headers: req.headers, signal: controller.signal });
     clearTimeout(timeoutId);
-    if (response.ok) {
-      return { ok: true };
-    }
+    if (response.ok) return { ok: true };
     return { ok: false, error: `Erreur HTTP ${response.status}` };
   } catch (error) {
     clearTimeout(timeoutId);
-    if (error.name === "AbortError") {
-      return { ok: false, error: "Délai dépassé (10s)" };
-    }
-    return { ok: false, error: "Le serveur local ne répond pas. Vérifiez qu'Ollama/LM Studio est bien lancé." };
+    if (error.name === "AbortError") return { ok: false, error: "Délai dépassé (10 s)" };
+    return { ok: false, error: "Le serveur ne répond pas. Vérifiez qu'Ollama / LM Studio est bien lancé et accessible." };
   }
+}
+
+/** GET /v1/models du fournisseur → liste d'identifiants de modèles. */
+async function listModels(provider, config) {
+  const settings = { ...DEFAULT_SETTINGS, provider, ...config };
+  // Le modèle n'est pas requis pour lister ; on neutralise ces contrôles
+  if (provider === "scaleway") settings.scalewayModel = settings.scalewayModel || "x";
+  if (provider === "local") settings.localModel = settings.localModel || "x";
+  if (provider === "openrouter") settings.openrouterModel = settings.openrouterModel || "x";
+  let req;
+  try { req = await providerRequest(settings); } catch (e) { return { ok: false, error: errorLabel(e.message) }; }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(req.modelsUrl, { method: "GET", headers: req.headers, signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (!response.ok) await throwHttpError(response);
+    const data = await response.json();
+    const list = Array.isArray(data.data) ? data.data : (Array.isArray(data.models) ? data.models : []);
+    const models = list
+      .map(m => ({ id: m.id || m.model || m.name, name: m.name || m.id || m.model }))
+      .filter(m => m.id)
+      .sort((a, b) => a.id.localeCompare(b.id));
+    return { ok: true, models };
+  } catch (error) {
+    clearTimeout(timeoutId);
+    return { ok: false, error: errorLabel(normalizeFetchError(error, req.isLocal).message) };
+  }
+}
+
+const ERROR_LABELS = {
+  NO_API_KEY: "Clé API OpenAI manquante.",
+  NO_API_KEY_SCALEWAY: "Clé API Scaleway manquante.",
+  NO_API_KEY_OPENROUTER: "Clé API OpenRouter manquante.",
+  NO_MODEL_OPENROUTER: "Modèle OpenRouter non renseigné.",
+  NO_PROJECT_ID_SCALEWAY: "ID de projet Scaleway manquant.",
+  NO_MODEL_SCALEWAY: "Modèle Scaleway non renseigné.",
+  NO_LOCAL_URL: "URL du serveur manquante.",
+  NO_LOCAL_MODEL: "Nom du modèle manquant.",
+  LOCAL_PERMISSION_DENIED: "Autorisation Chrome manquante pour cette adresse — cliquez à nouveau pour l'accorder.",
+  LOCAL_CONNECTION_REFUSED: "Le serveur ne répond pas.",
+  API_KEY_INVALID: "Clé API refusée.",
+  API_ERROR: "Le fournisseur a refusé la requête.",
+  RATE_LIMITED: "Limite de requêtes atteinte.",
+  SERVER_ERROR: "Erreur côté serveur.",
+  TIMEOUT: "Délai dépassé.",
+  NETWORK_ERROR: "Erreur réseau."
+};
+
+function errorLabel(message) {
+  const key = errorKeyOf(message);
+  const label = ERROR_LABELS[key];
+  const detail = String(message).slice(key.length).replace(/^:\s*/, "");
+  if (!label) return message;
+  return detail ? `${label} (${detail})` : label;
 }

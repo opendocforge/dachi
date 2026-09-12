@@ -3,919 +3,773 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dachi — Options</title>
+  <meta name="color-scheme" content="light dark">
+  <title>Dachi — Paramètres</title>
   <style>
-    *,
-    *::before,
-    *::after {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    /* ═══════════════════════════════════════════════════════════════
+       Design tokens
+       ═══════════════════════════════════════════════════════════════ */
+    :root {
+      --bg: #F6F6F8;
+      --surface: #FFFFFF;
+      --surface-2: #FAFAFB;
+      --surface-3: #F1F1F4;
+      --border: #E6E6EA;
+      --border-strong: #D6D6DC;
+      --text: #141417;
+      --text-2: #55555E;
+      --text-3: #8E8E98;
+
+      --accent: #5B5BF6;
+      --accent-hover: #4A4AE3;
+      --accent-soft: #EEEEFE;
+      --accent-ring: rgba(91, 91, 246, 0.22);
+      --accent-grad: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+
+      --success: #10B981;
+      --success-soft: #ECFDF5;
+      --success-text: #047857;
+      --warning: #F59E0B;
+      --warning-soft: #FFFBEB;
+      --warning-text: #B45309;
+      --danger: #EF4444;
+      --danger-soft: #FEF2F2;
+      --danger-text: #B91C1C;
+
+      --radius-lg: 16px;
+      --radius: 10px;
+      --radius-sm: 8px;
+      --shadow-sm: 0 1px 2px rgba(16, 16, 24, 0.04), 0 1px 3px rgba(16, 16, 24, 0.04);
+      --shadow-md: 0 6px 16px rgba(16, 16, 24, 0.07);
+      --shadow-lg: 0 24px 60px rgba(16, 16, 24, 0.18);
+      --topbar-h: 64px;
+      --font: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+      --mono: ui-monospace, "Cascadia Mono", Consolas, "JetBrains Mono", monospace;
     }
 
-    :root {
-      --primary: #2563EB;
-      --primary-hover: #1D4ED8;
-      --primary-light: #DBEAFE;
-      --primary-subtle: #EFF6FF;
-      --success: #059669;
-      --success-light: #D1FAE5;
-      --warning: #D97706;
-      --warning-light: #FEF3C7;
-      --warning-bg: #FFFBEB;
-      --error: #DC2626;
-      --error-light: #FEE2E2;
-      --text: #1E293B;
-      --text-secondary: #475569;
-      --text-muted: #94A3B8;
-      --bg: #F8FAFC;
-      --bg-card: #FFFFFF;
-      --border: #E2E8F0;
-      --border-focus: #2563EB;
-      --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.04);
-      --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.08);
-      --radius: 12px;
-      --radius-sm: 8px;
-      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0C0C0F;
+        --surface: #141418;
+        --surface-2: #18181D;
+        --surface-3: #1F1F25;
+        --border: #26262D;
+        --border-strong: #35353D;
+        --text: #F4F4F6;
+        --text-2: #A5A5AF;
+        --text-3: #6F6F7A;
+
+        --accent: #818CF8;
+        --accent-hover: #A5B4FC;
+        --accent-soft: rgba(129, 140, 248, 0.14);
+        --accent-ring: rgba(129, 140, 248, 0.3);
+
+        --success-soft: rgba(16, 185, 129, 0.12);
+        --success-text: #34D399;
+        --warning-soft: rgba(245, 158, 11, 0.12);
+        --warning-text: #FBBF24;
+        --danger-soft: rgba(239, 68, 68, 0.12);
+        --danger-text: #F87171;
+
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+        --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
+        --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.6);
+      }
     }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Base
+       ═══════════════════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; scroll-padding-top: calc(var(--topbar-h) + 20px); }
 
     body {
       font-family: var(--font);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      padding: 40px 20px;
-      line-height: 1.5;
-    }
-
-    .options-container {
-      width: 100%;
-      max-width: 600px;
-    }
-
-    /* Header */
-    .options-header {
-      text-align: center;
-      margin-bottom: 32px;
-    }
-
-    .options-header .logo {
-      display: inline-block;
-      width: 80px;
-      height: 80px;
-      margin-bottom: 14px;
-      border-radius: 20px;
-      overflow: hidden;
-      box-shadow: 0 4px 18px rgba(37, 99, 235, 0.35);
-    }
-
-    .options-header .logo img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
-
-    .options-header h1 {
-      font-size: 24px;
-      font-weight: 700;
-      color: var(--text);
-      letter-spacing: -0.02em;
-    }
-
-    .options-header p {
       font-size: 14px;
-      color: var(--text-muted);
-      margin-top: 4px;
+      line-height: 1.5;
+      color: var(--text);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
     }
 
-    /* Card */
-    .card {
-      background: var(--bg-card);
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    code {
+      font-family: var(--mono);
+      font-size: 0.86em;
+      background: var(--surface-3);
       border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 28px;
-      box-shadow: var(--shadow);
-      margin-bottom: 20px;
+      padding: 1px 5px;
+      border-radius: 5px;
     }
 
-    .card-title {
-      font-size: 13px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-      margin-bottom: 20px;
+    svg.i { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+    .hidden { display: none !important; }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Top bar
+       ═══════════════════════════════════════════════════════════════ */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      height: var(--topbar-h);
+      background: color-mix(in srgb, var(--surface) 82%, transparent);
+      backdrop-filter: saturate(160%) blur(12px);
+      -webkit-backdrop-filter: saturate(160%) blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .topbar-inner {
+      max-width: 1120px;
+      height: 100%;
+      margin: 0 auto;
+      padding: 0 24px;
       display: flex;
       align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+      flex-shrink: 0;
+    }
+
+    .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+    .brand-name { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+    .brand-sub { font-size: 12px; color: var(--text-3); }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 24px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text-2);
+      white-space: nowrap;
+    }
+
+    .pill-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+
+    .topbar-actions { display: flex; align-items: center; gap: 10px; }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Buttons
+       ═══════════════════════════════════════════════════════════════ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       gap: 8px;
+      height: 38px;
+      padding: 0 16px;
+      font-family: var(--font);
+      font-size: 13.5px;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 150ms, border-color 150ms, color 150ms, box-shadow 150ms, transform 100ms;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+    .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-ring); }
+
+    .btn-primary {
+      color: #fff;
+      background: var(--accent);
+      box-shadow: 0 1px 2px rgba(91, 91, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary.success { background: var(--success); box-shadow: 0 1px 2px rgba(16, 185, 129, 0.3); }
+
+    .btn-secondary {
+      color: var(--text);
+      background: var(--surface);
+      border-color: var(--border-strong);
+      box-shadow: var(--shadow-sm);
+    }
+    .btn-secondary:hover { background: var(--surface-2); border-color: var(--text-3); }
+
+    .btn-ghost { color: var(--text-2); background: transparent; }
+    .btn-ghost:hover { background: var(--surface-3); color: var(--text); }
+
+    /* Anciens noms conservés (utilisés par options.js) */
+    .test-btn,
+    .btn-sm {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 34px;
+      padding: 0 13px;
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background 150ms, border-color 150ms, color 150ms;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      box-shadow: var(--shadow-sm);
+    }
+    .test-btn:hover, .btn-sm-ghost:hover { background: var(--surface-2); border-color: var(--text-3); }
+    .test-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-sm-primary { color: #fff; background: var(--accent); border-color: transparent; }
+    .btn-sm-primary:hover { background: var(--accent-hover); }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Layout : sidenav + content
+       ═══════════════════════════════════════════════════════════════ */
+    .page {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 24px 96px;
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: 40px;
+      align-items: start;
     }
 
-    .card-title .icon {
-      font-size: 16px;
+    .sidenav {
+      position: sticky;
+      top: calc(var(--topbar-h) + 32px);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
     }
 
-    /* Form groups */
-    .form-group {
-      margin-bottom: 20px;
+    .sidenav-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-3);
+      padding: 0 12px 10px;
     }
 
-    .form-group:last-child {
-      margin-bottom: 0;
+    .sidenav a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      color: var(--text-2);
+      font-size: 13.5px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: background 120ms, color 120ms;
     }
+    .sidenav a svg.i { width: 16px; height: 16px; color: var(--text-3); }
+    .sidenav a:hover { background: var(--surface-3); color: var(--text); text-decoration: none; }
+    .sidenav a.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+    .sidenav a.active svg.i { color: var(--accent); }
+
+    .sidenav-note {
+      margin-top: 20px;
+      padding: 12px;
+      border-radius: var(--radius);
+      border: 1px dashed var(--border-strong);
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text-3);
+    }
+    .sidenav-note strong { color: var(--text-2); font-weight: 600; }
+
+    .content { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+
+    .page-head { margin-bottom: 4px; }
+    .page-head h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+    .page-head p { color: var(--text-2); margin-top: 4px; }
+
+    @media (max-width: 900px) {
+      .page { grid-template-columns: 1fr; gap: 24px; }
+      .sidenav { position: static; flex-direction: row; flex-wrap: wrap; gap: 6px; }
+      .sidenav-title, .sidenav-note { display: none; }
+      .sidenav a { border: 1px solid var(--border); background: var(--surface); }
+      .brand-sub { display: none; }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Cards
+       ═══════════════════════════════════════════════════════════════ */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .card-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: var(--accent-soft);
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .card-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+    .card-head p { font-size: 13px; color: var(--text-2); margin-top: 2px; }
+
+    .card-body { padding: 22px 24px; }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Forms
+       ═══════════════════════════════════════════════════════════════ */
+    .form-group { margin-bottom: 18px; }
+    .form-group:last-child { margin-bottom: 0; }
 
     label {
       display: block;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
       color: var(--text);
       margin-bottom: 6px;
     }
 
-    .label-hint {
-      font-weight: 400;
-      color: var(--text-muted);
-      font-size: 13px;
-    }
+    .label-hint { font-weight: 400; color: var(--text-3); }
 
-    /* Inputs */
     input[type="password"],
     input[type="text"],
     input[type="url"],
     select,
     textarea {
       width: 100%;
-      padding: 10px 14px;
-      font-size: 14px;
+      height: 38px;
+      padding: 0 12px;
+      font-size: 13.5px;
       font-family: var(--font);
       color: var(--text);
-      background: var(--bg-card);
-      border: 1.5px solid var(--border);
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
       border-radius: var(--radius-sm);
       outline: none;
-      transition: border-color 200ms, box-shadow 200ms;
-    }
-
-    input:focus,
-    select:focus,
-    textarea:focus {
-      border-color: var(--border-focus);
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+      box-shadow: var(--shadow-sm);
+      transition: border-color 150ms, box-shadow 150ms;
     }
 
     textarea {
+      height: auto;
+      padding: 10px 12px;
       resize: vertical;
-      min-height: 80px;
-      line-height: 1.6;
+      min-height: 84px;
+      line-height: 1.55;
+    }
+
+    input::placeholder, textarea::placeholder { color: var(--text-3); }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ring);
     }
 
     select {
       appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      cursor: pointer;
+      padding-right: 36px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238E8E98' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
       background-position: right 12px center;
-      padding-right: 36px;
-      cursor: pointer;
     }
 
-    /* Password wrapper */
-    .password-wrapper {
-      position: relative;
-    }
-
-    .password-wrapper input {
-      padding-right: 48px;
-    }
+    .password-wrapper { position: relative; }
+    .password-wrapper input { padding-right: 42px; }
 
     .toggle-password {
       position: absolute;
       right: 4px;
       top: 50%;
       transform: translateY(-50%);
-      background: none;
+      width: 30px;
+      height: 30px;
       border: none;
-      color: var(--text-muted);
-      cursor: pointer;
-      padding: 8px;
-      font-size: 18px;
-      line-height: 1;
       border-radius: 6px;
-      transition: color 200ms, background 200ms;
+      background: none;
+      cursor: pointer;
+      font-size: 15px;
+      line-height: 1;
+      color: var(--text-3);
+      display: grid;
+      place-items: center;
+    }
+    .toggle-password:hover { background: var(--surface-3); }
+
+    .api-help {
+      font-size: 12.5px;
+      color: var(--text-3);
+      margin-top: 7px;
+      line-height: 1.5;
     }
 
-    .toggle-password:hover {
-      color: var(--text);
-      background: var(--primary-subtle);
-    }
-
-    /* Badge */
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 10px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 600;
-      margin-left: 8px;
-      vertical-align: middle;
-    }
-
-    .badge-hds {
-      background: var(--primary-light);
-      color: var(--primary);
-    }
-
-    .badge-offline {
-      background: var(--success-light);
-      color: var(--success);
-    }
-
-    .badge-warning {
-      background: var(--warning-light);
-      color: var(--warning);
-    }
-
-    /* Info boxes */
-    .info-box {
-      padding: 14px 16px;
-      border-radius: var(--radius-sm);
-      font-size: 13px;
-      line-height: 1.6;
-      margin-top: 16px;
-    }
-
-    .info-box-blue {
-      background: var(--primary-subtle);
-      border: 1px solid var(--primary-light);
-      color: var(--primary-hover);
-    }
-
-    .info-box-green {
-      background: #F0FDF4;
-      border: 1px solid #BBF7D0;
-      color: #166534;
-    }
-
-    .info-box-orange {
-      background: var(--warning-bg);
-      border: 1px solid #FDE68A;
-      color: #92400E;
-    }
-
-    .info-box strong {
-      display: block;
-      margin-bottom: 6px;
-    }
-
-    .info-box ol, .info-box ul {
-      margin: 6px 0 0 18px;
-    }
-
-    .info-box li {
-      margin-bottom: 3px;
-    }
-
-    /* Provider fields — hidden by default */
-    .provider-fields {
-      display: none;
-    }
-
-    .provider-fields.active {
-      display: block;
-    }
-
-    /* Checkbox row */
     .checkbox-row {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 12px;
+      gap: 10px;
+      margin-bottom: 14px;
     }
-
     .checkbox-row input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
-      accent-color: var(--primary);
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
       cursor: pointer;
+      flex-shrink: 0;
     }
+    .checkbox-row label { margin: 0; font-weight: 500; cursor: pointer; }
 
-    .checkbox-row label {
-      margin-bottom: 0;
-      font-weight: 500;
-      cursor: pointer;
-    }
+    .row-inline { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .row-model { flex-wrap: nowrap; gap: 8px; }
+    .row-model > input, .row-model > select { flex: 1; min-width: 0; }
+    .row-model > .test-btn { flex-shrink: 0; height: 38px; }
 
-    /* Test connection button */
-    .test-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 16px;
-      font-size: 13px;
-      font-weight: 600;
+    kbd {
       font-family: var(--font);
-      color: var(--primary);
-      background: var(--primary-subtle);
-      border: 1.5px solid var(--primary-light);
-      border-radius: var(--radius-sm);
-      cursor: pointer;
-      transition: all 200ms;
-      margin-top: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 1px 5px;
+      border: 1px solid var(--border-strong);
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      background: var(--surface);
+      color: var(--text-2);
     }
 
-    .test-btn:hover {
-      background: var(--primary-light);
-    }
+    .test-result { font-size: 13px; font-weight: 600; }
+    .test-result.success { color: var(--success-text); }
+    .test-result.error { color: var(--danger-text); }
 
-    .test-btn:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .test-result {
+    /* Badges (fournisseurs / items) */
+    .badge {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      margin-left: 12px;
-      font-size: 13px;
+      height: 24px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 12px;
       font-weight: 600;
+      border: 1px solid transparent;
     }
+    .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.9; }
+    .badge-hds { background: var(--accent-soft); color: var(--accent); }
+    .badge-offline { background: var(--success-soft); color: var(--success-text); }
+    .badge-warning { background: var(--warning-soft); color: var(--warning-text); }
 
-    .test-result.success { color: var(--success); }
-    .test-result.error { color: var(--error); }
+    .provider-fields { display: none; }
+    .provider-fields.active { display: block; }
+
+    .provider-fields > .form-group:first-child { margin-bottom: 16px; }
+
+    /* Info boxes */
+    .info-box {
+      display: block;
+      padding: 12px 14px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      line-height: 1.55;
+      margin-top: 16px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text-2);
+    }
+    .info-box strong { display: block; color: var(--text); font-weight: 600; margin-bottom: 4px; }
+    .info-box ul, .info-box ol { margin: 6px 0 0 18px; }
+    .info-box li { margin-bottom: 2px; }
+    .info-box-blue { border-color: color-mix(in srgb, var(--accent) 30%, transparent); background: var(--accent-soft); }
+    .info-box-blue strong { color: var(--accent); }
+    .info-box-green { border-color: color-mix(in srgb, var(--success) 35%, transparent); background: var(--success-soft); }
+    .info-box-green strong { color: var(--success-text); }
+    .info-box-orange { border-color: color-mix(in srgb, var(--warning) 40%, transparent); background: var(--warning-soft); }
+    .info-box-orange strong { color: var(--warning-text); }
 
     /* Slider */
-    .slider-wrapper {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-
+    .slider-wrapper { display: flex; align-items: center; gap: 12px; }
+    .slider-wrapper .edge { font-size: 12px; color: var(--text-3); }
     .slider-wrapper input[type="range"] {
       flex: 1;
-      height: 6px;
+      height: 4px;
       -webkit-appearance: none;
       appearance: none;
-      background: var(--border);
-      border-radius: 3px;
+      background: var(--border-strong);
+      border-radius: 4px;
       outline: none;
-      border: none;
-      padding: 0;
     }
-
     .slider-wrapper input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
-      width: 20px;
-      height: 20px;
-      background: var(--primary);
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
+      background: var(--surface);
+      border: 2px solid var(--accent);
+      box-shadow: var(--shadow-sm);
       cursor: pointer;
-      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
-      transition: transform 150ms, box-shadow 150ms;
+      transition: transform 120ms;
     }
-
-    .slider-wrapper input[type="range"]::-webkit-slider-thumb:hover {
-      transform: scale(1.15);
-      box-shadow: 0 3px 10px rgba(37, 99, 235, 0.4);
-    }
-
-    .slider-wrapper input[type="range"]::-moz-range-thumb {
-      width: 20px;
-      height: 20px;
-      background: var(--primary);
-      border: none;
-      border-radius: 50%;
-      cursor: pointer;
-      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
-    }
-
+    .slider-wrapper input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.1); }
+    .slider-wrapper input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--accent-ring); }
     .slider-value {
-      min-width: 42px;
+      min-width: 40px;
       text-align: center;
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--primary);
-      background: var(--primary-subtle);
-      padding: 4px 10px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--mono);
+      color: var(--accent);
+      background: var(--accent-soft);
+      padding: 3px 8px;
       border-radius: 6px;
     }
 
-    /* Save button */
-    .save-btn {
+    /* ═══════════════════════════════════════════════════════════════
+       Actions du menu contextuel
+       ═══════════════════════════════════════════════════════════════ */
+    #menu-items-list {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--surface);
+    }
+
+    #menu-items-list > div + div { border-top: 1px solid var(--border); }
+
+    .menu-item-row {
       display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 8px;
-      width: 100%;
-      padding: 14px 24px;
-      font-size: 15px;
-      font-weight: 700;
-      font-family: var(--font);
-      color: #FFFFFF;
-      background: linear-gradient(135deg, var(--primary) 0%, #3B82F6 100%);
-      border: none;
-      border-radius: var(--radius-sm);
+      gap: 12px;
+      padding: 10px 14px;
+      transition: background 120ms;
+    }
+    .menu-item-row:hover { background: var(--surface-2); }
+
+    .menu-item-toggle { position: relative; flex-shrink: 0; width: 36px; height: 20px; margin: 0; }
+    .menu-item-toggle input { opacity: 0; width: 0; height: 0; margin: 0; position: absolute; }
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: var(--border-strong);
+      border-radius: 20px;
       cursor: pointer;
-      transition: all 200ms;
-      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+      transition: background 180ms;
     }
-
-    .save-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4);
+    .toggle-slider::before {
+      content: "";
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 2px;
+      top: 2px;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+      transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
     }
+    .menu-item-toggle input:checked + .toggle-slider { background: var(--accent); }
+    .menu-item-toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+    .menu-item-toggle input:focus-visible + .toggle-slider { box-shadow: 0 0 0 3px var(--accent-ring); }
 
-    .save-btn:active {
-      transform: translateY(0);
-      box-shadow: 0 1px 4px rgba(37, 99, 235, 0.3);
+    .menu-item-label { flex: 1; font-size: 13.5px; font-weight: 500; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .menu-item-label.disabled { color: var(--text-3); text-decoration: line-through; }
+
+    .menu-item-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text-2);
+      flex-shrink: 0;
     }
+    .badge-default { }
+    .badge-custom { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
 
-    .save-btn.success {
-      background: linear-gradient(135deg, var(--success) 0%, #10B981 100%);
-      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
+    .menu-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+    .icon-btn {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      background: none;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+      color: var(--text-2);
+      transition: background 120ms, border-color 120ms;
     }
+    .icon-btn:hover { background: var(--surface-3); border-color: var(--border); }
+    .icon-btn.danger:hover { background: var(--danger-soft); border-color: transparent; }
 
-    /* Toast */
+    .edit-panel {
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height 280ms ease;
+      background: var(--surface-2);
+    }
+    .edit-panel.open { max-height: 1600px; border-top: 1px solid var(--border); }
+
+    .edit-panel-inner {
+      padding: 18px 16px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .edit-panel-inner label { font-size: 12.5px; margin-bottom: 4px; }
+    .edit-panel-inner textarea { font-size: 13px; line-height: 1.5; }
+    .edit-panel-inner input[type="text"] { font-size: 13px; }
+    .edit-panel-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+
+    .edit-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 6px; }
+    .edit-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .edit-col textarea { width: 100%; }
+    @media (max-width: 900px) { .edit-two-col { grid-template-columns: 1fr; } }
+
+    .examples-list { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+    .example-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px 12px;
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .example-card-header { display: flex; align-items: center; justify-content: space-between; }
+    .example-card-header strong { font-size: 12px; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
+    .example-card textarea { min-height: 40px !important; font-size: 12.5px; }
+    .example-card label { font-size: 12px; color: var(--text-2); margin-bottom: 2px; }
+
+    .add-action-form {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 14px;
+      padding: 18px 16px 16px;
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius);
+      background: var(--surface-2);
+    }
+    .add-action-form.open { display: flex; }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Mentions légales / footer
+       ═══════════════════════════════════════════════════════════════ */
+    .legal-section { font-size: 13px; color: var(--text-2); line-height: 1.6; }
+    .legal-section h3 { font-size: 13px; font-weight: 600; color: var(--text); margin: 16px 0 4px; }
+    .legal-section h3:first-child { margin-top: 0; }
+    .legal-section ul { padding-left: 18px; margin: 4px 0; }
+    .legal-section strong { color: var(--text); font-weight: 600; }
+
+    .footer-info {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-3);
+      line-height: 1.6;
+      padding-top: 8px;
+    }
+    .footer-info a { color: var(--text-3); text-decoration: underline; text-underline-offset: 2px; }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Toast
+       ═══════════════════════════════════════════════════════════════ */
     .toast {
       position: fixed;
       bottom: 24px;
       left: 50%;
-      transform: translateX(-50%) translateY(100px);
+      transform: translateX(-50%) translateY(24px);
+      opacity: 0;
+      pointer-events: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 999px;
       background: var(--text);
-      color: #FFFFFF;
-      padding: 12px 24px;
-      border-radius: var(--radius-sm);
-      font-size: 14px;
+      color: var(--bg);
+      font-size: 13px;
       font-weight: 500;
       box-shadow: var(--shadow-lg);
-      transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+      transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 200ms;
       z-index: 1000;
     }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    .toast.error { background: var(--danger); color: #fff; }
 
-    .toast.show {
-      transform: translateX(-50%) translateY(0);
-    }
-
-    /* Footer */
-    .footer-info {
-      text-align: center;
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 16px;
-      line-height: 1.6;
-    }
-
-    .footer-info a {
-      color: var(--primary);
-      text-decoration: none;
-    }
-
-    .footer-info a:hover {
-      text-decoration: underline;
-    }
-
-    .api-help {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 6px;
-      line-height: 1.5;
-    }
-
-    .api-help a {
-      color: var(--primary);
-      text-decoration: none;
-    }
-
-    .api-help a:hover {
-      text-decoration: underline;
-    }
-
-    /* Hidden helper */
-    .hidden {
-      display: none !important;
-    }
-
-    /* CGU Modal */
+    /* ═══════════════════════════════════════════════════════════════
+       CGU modal
+       ═══════════════════════════════════════════════════════════════ */
     .cgu-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(15, 23, 42, 0.75);
-      backdrop-filter: blur(4px);
+      z-index: 9999;
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 9999;
       padding: 20px;
+      background: rgba(10, 10, 14, 0.6);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
     }
-
     .cgu-modal {
-      background: var(--bg-card);
-      border-radius: var(--radius);
-      max-width: 720px;
       width: 100%;
+      max-width: 720px;
       max-height: 90vh;
       display: flex;
       flex-direction: column;
-      box-shadow: var(--shadow-lg);
-    }
-
-    .cgu-header {
-      padding: 24px 28px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .cgu-header h2 {
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--text);
-    }
-
-    .cgu-body {
-      padding: 24px 28px;
-      overflow-y: auto;
-      font-size: 14px;
-      line-height: 1.6;
-      color: var(--text-secondary);
-    }
-
-    .cgu-body h3 {
-      color: var(--text);
-      font-size: 15px;
-      margin: 18px 0 8px;
-    }
-
-    .cgu-body h3:first-child {
-      margin-top: 0;
-    }
-
-    .cgu-body ul, .cgu-body ol {
-      padding-left: 22px;
-      margin: 8px 0;
-    }
-
-    .cgu-body li {
-      margin-bottom: 4px;
-    }
-
-    .cgu-body strong {
-      color: var(--text);
-    }
-
-    .cgu-warning {
-      background: var(--warning-bg);
-      border: 1px solid var(--warning-light);
-      border-left: 4px solid var(--warning);
-      border-radius: var(--radius-sm);
-      padding: 12px 16px;
-      margin: 12px 0;
-      color: #7C2D12;
-    }
-
-    .cgu-footer {
-      padding: 20px 28px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .cgu-checkbox {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      cursor: pointer;
-      font-size: 14px;
-      color: var(--text);
-    }
-
-    .cgu-checkbox input {
-      margin-top: 3px;
-      flex-shrink: 0;
-    }
-
-    .cgu-accept-btn {
-      background: var(--primary);
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      border-radius: var(--radius-sm);
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 200ms;
-    }
-
-    .cgu-accept-btn:hover:not(:disabled) {
-      background: var(--primary-hover);
-    }
-
-    .cgu-accept-btn:disabled {
-      background: var(--text-muted);
-      cursor: not-allowed;
-      opacity: 0.6;
-    }
-
-    /* ── Actions du menu ── */
-    .menu-item-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 0;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .menu-item-row:last-child {
-      border-bottom: none;
-      padding-bottom: 0;
-    }
-
-    .menu-item-toggle {
-      position: relative;
-      flex-shrink: 0;
-      width: 36px;
-      height: 20px;
-    }
-
-    .menu-item-toggle input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-      margin: 0;
-      padding: 0;
-      border: none;
-    }
-
-    .toggle-slider {
-      position: absolute;
-      inset: 0;
-      background: var(--border);
-      border-radius: 20px;
-      cursor: pointer;
-      transition: background 200ms;
-    }
-
-    .toggle-slider::before {
-      content: "";
-      position: absolute;
-      width: 14px;
-      height: 14px;
-      left: 3px;
-      top: 3px;
-      background: white;
-      border-radius: 50%;
-      transition: transform 200ms;
-    }
-
-    .menu-item-toggle input:checked + .toggle-slider {
-      background: var(--primary);
-    }
-
-    .menu-item-toggle input:checked + .toggle-slider::before {
-      transform: translateX(16px);
-    }
-
-    .menu-item-label {
-      flex: 1;
-      font-size: 14px;
-      color: var(--text);
-      font-weight: 500;
-    }
-
-    .menu-item-label.disabled {
-      color: var(--text-muted);
-      text-decoration: line-through;
-    }
-
-    .menu-item-badge {
-      font-size: 11px;
-      padding: 2px 7px;
-      border-radius: 10px;
-      font-weight: 600;
-    }
-
-    .badge-default {
-      background: var(--primary-light);
-      color: var(--primary);
-    }
-
-    .badge-custom {
-      background: #F0FDF4;
-      color: #15803D;
-    }
-
-    .menu-item-actions {
-      display: flex;
-      gap: 6px;
-      flex-shrink: 0;
-    }
-
-    .icon-btn {
-      background: none;
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 5px 8px;
-      font-size: 13px;
-      cursor: pointer;
-      color: var(--text-secondary);
-      transition: background 150ms, border-color 150ms;
-      line-height: 1;
-    }
-
-    .icon-btn:hover {
-      background: var(--bg);
-      border-color: var(--primary);
-      color: var(--primary);
-    }
-
-    .icon-btn.danger:hover {
-      border-color: var(--error);
-      color: var(--error);
-      background: var(--error-light);
-    }
-
-    .edit-panel {
-      margin-top: 0;
-      overflow: hidden;
-      max-height: 0;
-      transition: max-height 300ms ease, margin 300ms ease;
-    }
-
-    .edit-panel.open {
-      max-height: 400px;
-      margin-top: 4px;
-    }
-
-    .edit-panel-inner {
-      background: var(--bg);
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .edit-panel-inner label {
-      font-size: 13px;
-      margin-bottom: 3px;
-    }
-
-    .edit-panel-inner textarea {
-      min-height: 100px;
-      font-size: 13px;
-    }
-
-    .edit-panel-inner input[type="text"] {
-      font-size: 13px;
-    }
-
-    .edit-panel-actions {
-      display: flex;
-      gap: 8px;
-      justify-content: flex-end;
-      margin-top: 12px;
-    }
-
-    /* ─── Layout 2 colonnes du panneau d'édition ─────────────── */
-    .edit-two-col {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 18px;
-      margin-top: 8px;
-    }
-
-    .edit-col {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-width: 0;
-    }
-
-    .edit-col textarea {
-      width: 100%;
-      box-sizing: border-box;
-      resize: vertical;
-    }
-
-    /* Sur petits écrans : repasser en 1 colonne */
-    @media (max-width: 900px) {
-      .edit-two-col {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    /* Élargir le panneau d'édition pour gérer 2 colonnes */
-    .edit-panel.open {
-      max-height: 1400px;
-    }
-
-    .edit-panel-inner {
-      max-width: 100%;
-    }
-
-    /* ─── Examples (few-shot) editor ─────────────────────────── */
-    .examples-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      margin: 6px 0 0;
-    }
-
-    .example-card {
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 10px 12px;
-      background: var(--surface-alt);
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
     }
-
-    .example-card-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 4px;
+    .cgu-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+    .cgu-header h2 { font-size: 16px; font-weight: 600; }
+    .cgu-body { padding: 22px 24px; overflow-y: auto; font-size: 13.5px; line-height: 1.6; color: var(--text-2); }
+    .cgu-body h3 { font-size: 13.5px; font-weight: 600; color: var(--text); margin: 18px 0 6px; }
+    .cgu-body h3:first-child { margin-top: 0; }
+    .cgu-body ul, .cgu-body ol { padding-left: 20px; margin: 6px 0; }
+    .cgu-body li { margin-bottom: 3px; }
+    .cgu-body strong { color: var(--text); font-weight: 600; }
+    .cgu-warning {
+      background: var(--warning-soft);
+      border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      color: var(--warning-text);
     }
-
-    .example-card-header strong {
-      font-size: 13px;
-      color: var(--primary);
-    }
-
-    .example-card textarea {
-      min-height: 38px !important;
-      font-size: 13px;
-      width: 100%;
-      box-sizing: border-box;
-    }
-
-    .example-card label {
-      font-size: 12px;
-      color: var(--text-secondary);
-      margin-bottom: 2px;
-    }
-
-    .btn-sm {
-      padding: 7px 14px;
-      font-size: 13px;
-      font-weight: 600;
-      border-radius: var(--radius-sm);
-      border: none;
-      cursor: pointer;
-      transition: background 150ms;
-    }
-
-    .btn-sm-primary {
-      background: var(--primary);
-      color: white;
-    }
-
-    .btn-sm-primary:hover { background: var(--primary-hover); }
-
-    .btn-sm-ghost {
-      background: transparent;
-      color: var(--text-secondary);
-      border: 1.5px solid var(--border);
-    }
-
-    .btn-sm-ghost:hover { background: var(--bg); }
-
-    .add-action-form {
-      border-top: 1px solid var(--border);
-      margin-top: 12px;
-      padding-top: 16px;
-      display: none;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .add-action-form.open { display: flex; }
-
-    /* Legal section */
-    .legal-section {
-      font-size: 13px;
-      color: var(--text-secondary);
-      line-height: 1.6;
-    }
-
-    .legal-section h3 {
-      font-size: 14px;
-      color: var(--text);
-      margin: 14px 0 6px;
-    }
-
-    .legal-section h3:first-child {
-      margin-top: 0;
-    }
-
-    .legal-section ul {
-      padding-left: 20px;
-      margin: 6px 0;
-    }
+    .cgu-warning strong { color: var(--warning-text); }
+    .cgu-footer { padding: 18px 24px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 14px; background: var(--surface-2); }
+    .cgu-checkbox { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-size: 13px; font-weight: 400; color: var(--text-2); }
+    .cgu-checkbox input { margin-top: 3px; flex-shrink: 0; accent-color: var(--accent); }
+    .cgu-accept-btn { align-self: flex-end; }
   </style>
 </head>
 <body>
@@ -924,11 +778,12 @@
   <div class="cgu-overlay hidden" id="cgu-overlay">
     <div class="cgu-modal">
       <div class="cgu-header">
-        <h2>⚖️ Conditions d'utilisation — À lire attentivement</h2>
+        <div class="card-icon"><svg class="i" viewBox="0 0 24 24"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg></div>
+        <h2>Conditions d'utilisation — à lire attentivement</h2>
       </div>
       <div class="cgu-body">
         <div class="cgu-warning">
-          <strong>⚠️ Dachi n'est PAS un dispositif médical.</strong><br>
+          <strong>Dachi n'est PAS un dispositif médical.</strong><br>
           Dachi est un outil d'aide à la <strong>rédaction administrative et bureautique</strong>. Il ne constitue en aucun cas un dispositif d'aide à la décision médicale, au diagnostic, au traitement ou à l'interprétation d'examens.
         </div>
 
@@ -947,7 +802,7 @@
           <li>Le médecin utilisateur est <strong>responsable du traitement</strong> au sens du RGPD.</li>
           <li>Il lui appartient de réaliser une <strong>AIPD (analyse d'impact)</strong> et de signer un <strong>contrat de sous-traitance (art. 28 RGPD)</strong> avec le fournisseur d'API choisi.</li>
           <li>L'extension ne stocke, ne journalise ni ne transmet aucune donnée en dehors du fournisseur API configuré par l'utilisateur.</li>
-          <li>Le choix du fournisseur (Scaleway HDS, serveur local, OpenAI) relève de la seule responsabilité de l'utilisateur.</li>
+          <li>Le choix du fournisseur (Scaleway HDS, serveur local, OpenAI, OpenRouter) relève de la seule responsabilité de l'utilisateur.</li>
         </ul>
 
         <h3>4. Secret médical</h3>
@@ -964,310 +819,513 @@
           <input type="checkbox" id="cgu-accept-checkbox">
           <span>J'ai lu et j'accepte les conditions ci-dessus. Je comprends que Dachi est un outil de productivité rédactionnelle et non un dispositif médical, et que je reste seul responsable de tout usage clinique ou administratif.</span>
         </label>
-        <button type="button" class="cgu-accept-btn" id="cgu-accept-btn" disabled>
+        <button type="button" class="btn btn-primary cgu-accept-btn" id="cgu-accept-btn" disabled>
           Accepter et continuer
         </button>
       </div>
     </div>
   </div>
 
-  <div class="options-container">
-
-    <!-- Header -->
-    <div class="options-header">
-      <div class="logo"><img src="icons/icon128.png" alt="Dachi"></div>
-      <h1>Dachi</h1>
-      <p>Extension de productivité rédactionnelle</p>
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <img class="brand-logo" src="icons/icon48.png" alt="">
+        <div class="brand-text">
+          <span class="brand-name">Dachi</span>
+          <span class="brand-sub">Rédaction assistée pour professionnels de santé</span>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <span class="pill"><span class="pill-dot"></span> <span id="version-pill">v—</span></span>
+        <button type="button" class="btn btn-primary" id="save-btn">
+          Sauvegarder les paramètres
+        </button>
+      </div>
     </div>
+  </header>
 
-    <!-- Section 1 : Fournisseur API -->
-    <div class="card">
-      <div class="card-title">
-        <span class="icon">🔌</span> Fournisseur API
+  <div class="page">
+
+    <!-- Navigation latérale -->
+    <aside class="sidenav" id="sidenav">
+      <div class="sidenav-title">Paramètres</div>
+      <a href="#section-provider" class="active"><svg class="i" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg> Fournisseur API</a>
+      <a href="#section-model"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></svg> Modèle</a>
+      <a href="#section-actions"><svg class="i" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg> Actions du menu</a>
+      <a href="#section-anonymize"><svg class="i" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg> Anonymisation</a>
+      <a href="#section-context"><svg class="i" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Contexte médecin</a>
+      <a href="#section-backup"><svg class="i" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg> Sauvegarde</a>
+      <a href="#section-legal"><svg class="i" viewBox="0 0 24 24"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg> Mentions légales</a>
+      <div class="sidenav-note">
+        <strong>Rappel</strong> — Dachi n'est pas un dispositif médical. Chaque texte généré est un brouillon à relire et valider.
+      </div>
+    </aside>
+
+    <!-- Contenu -->
+    <main class="content">
+
+      <div class="page-head">
+        <h1>Paramètres</h1>
+        <p>Configurez votre fournisseur d'IA, vos actions du clic droit et vos préférences de rédaction.</p>
       </div>
 
-      <div class="form-group">
-        <label for="provider">Sélectionnez votre fournisseur</label>
-        <select id="provider">
-          <option value="scaleway">Scaleway (serveur HDS)</option>
-          <option value="local">Serveur local (Ollama / LM Studio)</option>
-          <option value="openai">OpenAI Direct</option>
-        </select>
-      </div>
-
-      <!-- Scaleway HDS fields -->
-      <div id="fields-scaleway" class="provider-fields active">
-        <div class="form-group">
-          <span class="badge badge-hds">🛡️ Serveur HDS</span>
-        </div>
-
-        <div class="form-group">
-          <label for="scaleway-api-key">
-            Clé API Scaleway
-            <span class="label-hint">— obligatoire</span>
-          </label>
-          <div class="password-wrapper">
-            <input type="password" id="scaleway-api-key" placeholder="Votre clé API Scaleway" autocomplete="off" spellcheck="false">
-            <button type="button" class="toggle-password" data-target="scaleway-api-key" aria-label="Afficher/Masquer">👁️</button>
+      <!-- Section : Fournisseur API -->
+      <section class="card" id="section-provider">
+        <div class="card-head">
+          <div class="card-icon"><svg class="i" viewBox="0 0 24 24"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+          <div>
+            <h2>Fournisseur API</h2>
+            <p>Où sont envoyés les textes sélectionnés pour génération.</p>
           </div>
-          <p class="api-help">
-            Obtenez votre clé sur <a href="https://console.scaleway.com/iam/api-keys" target="_blank" rel="noopener">console.scaleway.com</a>
-          </p>
         </div>
+        <div class="card-body">
 
-        <div class="form-group">
-          <label for="scaleway-project-id">
-            ID de projet Scaleway
-            <span class="label-hint">— obligatoire</span>
-          </label>
-          <input type="text" id="scaleway-project-id" placeholder="ex : be10ccee-f48c-478b-9afc-dc51ed398945" autocomplete="off" spellcheck="false">
-          <p class="api-help">
-            Visible dans l'URL de votre projet sur la <a href="https://console.scaleway.com/project/settings" target="_blank" rel="noopener">console Scaleway</a>.
-          </p>
+          <div class="form-group">
+            <label for="provider">Fournisseur</label>
+            <select id="provider">
+              <option value="scaleway">Scaleway (serveur HDS)</option>
+              <option value="local">Serveur local (Ollama / LM Studio)</option>
+              <option value="openai">OpenAI Direct</option>
+              <option value="openrouter">OpenRouter (multi-modèles)</option>
+            </select>
+          </div>
+
+          <!-- Scaleway HDS fields -->
+          <div id="fields-scaleway" class="provider-fields active">
+            <div class="form-group">
+              <span class="badge badge-hds">Hébergement HDS — France</span>
+            </div>
+
+            <div class="form-group">
+              <label for="scaleway-api-key">Clé API Scaleway <span class="label-hint">— obligatoire</span></label>
+              <div class="password-wrapper">
+                <input type="password" id="scaleway-api-key" placeholder="Votre clé API Scaleway" autocomplete="off" spellcheck="false">
+                <button type="button" class="toggle-password" data-target="scaleway-api-key" aria-label="Afficher/Masquer">👁️</button>
+              </div>
+              <p class="api-help">
+                Obtenez votre clé sur <a href="https://console.scaleway.com/iam/api-keys" target="_blank" rel="noopener">console.scaleway.com</a>
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label for="scaleway-project-id">ID de projet Scaleway <span class="label-hint">— obligatoire</span></label>
+              <div class="password-wrapper">
+                <input type="password" id="scaleway-project-id" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+                <button type="button" class="toggle-password" data-target="scaleway-project-id" aria-label="Afficher/Masquer">👁️</button>
+              </div>
+              <p class="api-help">
+                Visible dans l'URL de votre projet sur la <a href="https://console.scaleway.com/project/settings" target="_blank" rel="noopener">console Scaleway</a>.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label for="scaleway-model">Modèle IA</label>
+              <div class="row-inline row-model">
+                <input type="text" id="scaleway-model" list="scaleway-models" placeholder="mistral-small-3.2-24b-instruct-2506" autocomplete="off" spellcheck="false">
+                <datalist id="scaleway-models">
+                  <option value="mistral-small-3.2-24b-instruct-2506">Mistral Small 3.2 24B — rapide, recommandé</option>
+                  <option value="mistral-medium-3.5-128b">Mistral Medium 3.5 128B</option>
+                  <option value="mistral-large-3-675b-instruct-2512">Mistral Large 3 675B</option>
+                  <option value="gemma-4-31b-it">Gemma 4 31B</option>
+                  <option value="gemma-4-26b-a4b-it">Gemma 4 26B (A4B)</option>
+                  <option value="gemma-3-27b-it">Gemma 3 27B</option>
+                  <option value="qwen3.6-35b-a3b">Qwen 3.6 35B (A3B)</option>
+                  <option value="qwen3.5-122b-a10b">Qwen 3.5 122B (A10B)</option>
+                  <option value="qwen3.5-397b-a17b">Qwen 3.5 397B (A17B)</option>
+                  <option value="qwen3.5-35b-a3b">Qwen 3.5 35B (A3B)</option>
+                  <option value="qwen3-235b-a22b-instruct-2507">Qwen 3 235B Instruct</option>
+                  <option value="qwen3-235b-a22b-thinking-2507">Qwen 3 235B Thinking — raisonnement</option>
+                  <option value="glm-5.2">GLM 5.2</option>
+                  <option value="deepseek-v4-flash-0731">DeepSeek V4 Flash</option>
+                  <option value="minimax-m2.5">MiniMax M2.5</option>
+                  <option value="gpt-oss-120b">GPT-OSS 120B — raisonnement</option>
+                  <option value="gpt-oss-20b">GPT-OSS 20B — raisonnement</option>
+                  <option value="magistral-small-2506">Magistral Small — raisonnement</option>
+                  <option value="llama-3.3-70b-instruct">Llama 3.3 70B</option>
+                  <option value="llama-3.1-8b-instruct">Llama 3.1 8B</option>
+                  <option value="mistral-nemo-instruct-2407">Mistral Nemo 12B</option>
+                </datalist>
+                <button type="button" class="test-btn" data-list-models="scaleway" title="Charger la liste des modèles depuis le fournisseur">Actualiser</button>
+              </div>
+              <p class="api-help" data-models-help="scaleway">Saisissez un identifiant ou cliquez sur « Actualiser » pour charger les modèles disponibles sur votre projet.</p>
+            </div>
+
+            <div class="form-group">
+              <button type="button" id="test-scaleway-btn" class="btn btn-secondary">
+                Tester la connexion Scaleway
+              </button>
+              <p id="test-scaleway-result" class="api-help" style="margin-top:8px;"></p>
+            </div>
+          </div>
+
+          <!-- Local server fields -->
+          <div id="fields-local" class="provider-fields">
+            <div class="form-group">
+              <span class="badge badge-offline">Infrastructure privée — 100 % sous votre contrôle</span>
+            </div>
+
+            <div class="form-group">
+              <label for="local-server-url">URL du serveur</label>
+              <input type="url" id="local-server-url" placeholder="http://localhost:11434/v1" value="http://localhost:11434/v1" autocomplete="off" spellcheck="false">
+              <p class="api-help">
+                Serveur sur cette machine (<code>localhost</code>) ou distant sur votre réseau privé — LAN, Tailscale, VPN — ex : <code>http://100.x.y.z:11434/v1</code>.
+              </p>
+              <p id="local-remote-hint" class="api-help hidden" style="margin-top:8px;"></p>
+            </div>
+
+            <div class="form-group">
+              <label for="local-model">Nom du modèle</label>
+              <div class="row-inline row-model">
+                <input type="text" id="local-model" list="local-models" placeholder="llama3, mistral, mixtral, gemma2..." value="llama3" autocomplete="off" spellcheck="false">
+                <datalist id="local-models"></datalist>
+                <button type="button" class="test-btn" data-list-models="local" title="Charger la liste des modèles depuis le serveur">Actualiser</button>
+              </div>
+              <p class="api-help" data-models-help="local"></p>
+            </div>
+
+            <div class="checkbox-row">
+              <input type="checkbox" id="local-require-key">
+              <label for="local-require-key">Clé API requise</label>
+            </div>
+
+            <div id="local-key-group" class="form-group hidden">
+              <label for="local-api-key">Clé API</label>
+              <div class="password-wrapper">
+                <input type="password" id="local-api-key" placeholder="Clé API du serveur local" autocomplete="off" spellcheck="false">
+                <button type="button" class="toggle-password" data-target="local-api-key" aria-label="Afficher/Masquer">👁️</button>
+              </div>
+            </div>
+
+            <div class="row-inline">
+              <button type="button" class="test-btn" id="test-connection-btn">🔗 Tester la connexion</button>
+              <span id="test-result" class="test-result"></span>
+            </div>
+
+            <div class="info-box info-box-green">
+              <strong>Confidentialité maximale</strong>
+              Vos données ne quittent jamais votre infrastructure. Compatible avec tout serveur exposant une API au format OpenAI (Ollama, LM Studio, llama.cpp, vLLM, LocalAI, text-generation-webui...), sur cette machine ou sur un serveur de votre réseau privé (LAN, Tailscale, VPN). Pour un serveur distant, Chrome vous demandera une fois l'autorisation d'accéder à son adresse.
+            </div>
+          </div>
+
+          <!-- OpenAI Direct fields -->
+          <div id="fields-openai" class="provider-fields">
+            <div class="form-group">
+              <span class="badge badge-warning">Non conforme HDS — données hors EEE</span>
+            </div>
+
+            <div class="form-group">
+              <label for="openai-api-key">Clé API OpenAI <span class="label-hint">— obligatoire</span></label>
+              <div class="password-wrapper">
+                <input type="password" id="openai-api-key" placeholder="sk-..." autocomplete="off" spellcheck="false">
+                <button type="button" class="toggle-password" data-target="openai-api-key" aria-label="Afficher/Masquer">👁️</button>
+              </div>
+              <p class="api-help">
+                Obtenez votre clé sur <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>
+              </p>
+            </div>
+
+            <div class="info-box info-box-orange">
+              <strong>Attention : données hors EEE</strong>
+              Avec OpenAI Direct, vos données (texte sélectionné, réponses) transitent par les serveurs OpenAI situés aux États-Unis. Cette option <strong style="display:inline">n'est pas conforme</strong> à la réglementation HDS française (article L.1111-8 du Code de la santé publique). Ne l'utilisez pas avec des données de santé à caractère personnel.
+            </div>
+          </div>
+
+          <!-- OpenRouter fields -->
+          <div id="fields-openrouter" class="provider-fields">
+            <div class="form-group">
+              <span class="badge badge-warning">Non conforme HDS — routage vers des fournisseurs tiers</span>
+            </div>
+
+            <div class="form-group">
+              <label for="openrouter-api-key">Clé API OpenRouter <span class="label-hint">— obligatoire</span></label>
+              <div class="password-wrapper">
+                <input type="password" id="openrouter-api-key" placeholder="sk-or-v1-…" autocomplete="off" spellcheck="false">
+                <button type="button" class="toggle-password" data-target="openrouter-api-key" aria-label="Afficher/Masquer">👁️</button>
+              </div>
+              <p class="api-help">
+                Obtenez votre clé sur <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">openrouter.ai/settings/keys</a>
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label for="openrouter-model">Modèle IA <span class="label-hint">— identifiant <code>fournisseur/modèle</code></span></label>
+              <div class="row-inline row-model">
+                <input type="text" id="openrouter-model" list="openrouter-models" placeholder="mistralai/mistral-small-3.2-24b-instruct" autocomplete="off" spellcheck="false">
+                <datalist id="openrouter-models">
+                  <option value="mistralai/mistral-small-3.2-24b-instruct">Mistral Small 3.2 24B</option>
+                  <option value="mistralai/mistral-medium-3">Mistral Medium 3</option>
+                  <option value="openai/gpt-4o-mini">GPT-4o Mini</option>
+                  <option value="anthropic/claude-sonnet-4">Claude Sonnet 4</option>
+                  <option value="google/gemini-2.5-flash">Gemini 2.5 Flash</option>
+                </datalist>
+                <button type="button" class="test-btn" data-list-models="openrouter" title="Charger la liste des modèles depuis OpenRouter">Actualiser</button>
+              </div>
+              <p class="api-help" data-models-help="openrouter">Cliquez sur « Actualiser » pour charger le catalogue complet (plusieurs centaines de modèles), puis commencez à taper pour filtrer.</p>
+            </div>
+
+            <div class="form-group">
+              <button type="button" id="test-openrouter-btn" class="btn btn-secondary">
+                Tester la connexion OpenRouter
+              </button>
+              <p id="test-openrouter-result" class="api-help" style="margin-top:8px;"></p>
+            </div>
+
+            <div class="info-box info-box-orange">
+              <strong>Attention : données hors EEE</strong>
+              OpenRouter est un agrégateur : chaque requête est routée vers le fournisseur du modèle choisi (États-Unis le plus souvent). Cette option <strong style="display:inline">n'est pas conforme</strong> à la réglementation HDS. Dachi demande à OpenRouter d'exclure les fournisseurs qui conservent ou entraînent sur les données (<code>data_collection: deny</code>), mais cela ne remplace pas un hébergement HDS. Ne l'utilisez pas avec des données de santé à caractère personnel.
+            </div>
+          </div>
         </div>
+      </section>
 
-        <div class="form-group">
-          <label for="scaleway-model">Modèle IA</label>
-          <select id="scaleway-model">
-            <option value="mistral-small-3.2-24b-instruct-2506">Mistral Small 3.2 24B</option>
-            <option value="gpt-oss-120b">GPT-OSS 120B</option>
-          </select>
+      <!-- (fin fournisseur) -->
+      <!-- Section : Modèle et paramètres -->
+      <section class="card" id="section-model">
+        <div class="card-head">
+          <div class="card-icon"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></svg></div>
+          <div>
+            <h2>Modèle et paramètres</h2>
+            <p>Réglages de génération communs à toutes les actions.</p>
+          </div>
         </div>
+        <div class="card-body">
+          <div class="form-group" id="model-group">
+            <label for="model">Modèle IA <span class="label-hint">— utilisé avec OpenAI Direct</span></label>
+            <div class="row-inline row-model">
+              <input type="text" id="model" list="openai-models" placeholder="gpt-5-mini" autocomplete="off" spellcheck="false">
+              <datalist id="openai-models">
+                <option value="gpt-5-mini">GPT-5 Mini — recommandé</option>
+                <option value="gpt-5-nano">GPT-5 Nano — le moins cher</option>
+                <option value="gpt-5">GPT-5</option>
+                <option value="gpt-5.1">GPT-5.1</option>
+                <option value="gpt-5.2">GPT-5.2</option>
+                <option value="gpt-5.2-chat">GPT-5.2 Chat — sans raisonnement</option>
+                <option value="gpt-5.4-nano">GPT-5.4 Nano</option>
+                <option value="gpt-5.4-mini">GPT-5.4 Mini</option>
+                <option value="gpt-5.4">GPT-5.4</option>
+                <option value="gpt-5.5">GPT-5.5</option>
+                <option value="gpt-5.6-luna">GPT-5.6 Luna — économique</option>
+                <option value="gpt-5.6-sol">GPT-5.6 Sol</option>
+                <option value="gpt-5.6-terra">GPT-5.6 Terra</option>
+                <option value="gpt-6-astra">GPT-6 Astra — haut de gamme</option>
+                <option value="gpt-4.1">GPT-4.1 — sans raisonnement</option>
+                <option value="gpt-4.1-mini">GPT-4.1 Mini — sans raisonnement</option>
+                <option value="gpt-4.1-nano">GPT-4.1 Nano — sans raisonnement</option>
+                <option value="o4-mini">o4-mini — raisonnement</option>
+                <option value="o3">o3 — raisonnement</option>
+                <option value="gpt-4o">GPT-4o (ancien)</option>
+                <option value="gpt-4o-mini">GPT-4o Mini (ancien)</option>
+              </datalist>
+              <button type="button" class="test-btn" data-list-models="openai" title="Charger la liste des modèles depuis OpenAI">Actualiser</button>
+            </div>
+            <p class="api-help" data-models-help="openai">Les modèles GPT-5 / o-series raisonnent avant de répondre : Dachi demande un raisonnement « faible » pour rester rapide et économique. Cliquez sur « Actualiser » pour charger la liste exacte de votre compte.</p>
+          </div>
 
-        <div class="form-group">
-          <button type="button" id="test-scaleway-btn" class="btn btn-secondary">
-            🧪 Tester la connexion Scaleway
+          <div class="form-group">
+            <label for="temperature">Température <span class="label-hint">— précision des réponses</span></label>
+            <div class="slider-wrapper">
+              <span class="edge">Précis</span>
+              <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.3">
+              <span class="edge">Créatif</span>
+              <span class="slider-value" id="temp-value">0.3</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="max-tokens">Longueur max de réponse <span class="label-hint">— plafond de jetons générés (raisonnement interne inclus)</span></label>
+            <select id="max-tokens">
+              <option value="1000">1 000 jetons — réponses courtes</option>
+              <option value="2000">2 000 jetons</option>
+              <option value="4000">4 000 jetons — recommandé</option>
+              <option value="8000">8 000 jetons — longs documents</option>
+              <option value="16000">16 000 jetons</option>
+            </select>
+            <p class="api-help">1 000 jetons ≈ 700 mots. Le modèle s'arrête de lui-même quand il a fini : un plafond élevé ne rallonge pas les réponses, il évite seulement qu'elles soient coupées.</p>
+          </div>
+
+          <div class="checkbox-row">
+            <input type="checkbox" id="stream-enabled" checked>
+            <label for="stream-enabled">Afficher la réponse au fur et à mesure (streaming)</label>
+          </div>
+
+          <div class="form-group">
+            <label for="quick-action">Action rapide au clavier <span class="label-hint">— raccourci <kbd>Alt</kbd>+<kbd>Maj</kbd>+<kbd>D</kbd> sur le texte sélectionné</span></label>
+            <div class="row-inline row-model">
+              <select id="quick-action"></select>
+              <button type="button" class="test-btn" id="shortcuts-btn" title="Modifier le raccourci dans Chrome">Modifier le raccourci</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section : Actions du menu contextuel -->
+      <section class="card" id="section-actions">
+        <div class="card-head">
+          <div class="card-icon"><svg class="i" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></div>
+          <div>
+            <h2>Actions du menu contextuel</h2>
+            <p>Activez, désactivez ou personnalisez les actions proposées au clic droit.</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <!-- Liste des items (injectée par options.js) -->
+          <div id="menu-items-list"></div>
+
+          <!-- Bouton ajouter -->
+          <button type="button" class="test-btn" id="add-action-btn" style="margin-top: 14px;">
+            ➕ Ajouter une action personnalisée
           </button>
-          <p id="test-scaleway-result" class="api-help" style="margin-top:8px;"></p>
-        </div>
 
-      </div>
-
-      <!-- Local server fields -->
-      <div id="fields-local" class="provider-fields">
-        <div class="form-group">
-          <span class="badge badge-offline">🔒 100% hors-ligne</span>
-        </div>
-
-        <div class="form-group">
-          <label for="local-server-url">
-            URL du serveur
-          </label>
-          <input type="url" id="local-server-url" placeholder="http://localhost:11434/v1" value="http://localhost:11434/v1" autocomplete="off" spellcheck="false">
-        </div>
-
-        <div class="form-group">
-          <label for="local-model">
-            Nom du modèle
-          </label>
-          <input type="text" id="local-model" placeholder="llama3, mistral, mixtral, gemma2..." value="llama3" autocomplete="off" spellcheck="false">
-        </div>
-
-        <div class="checkbox-row">
-          <input type="checkbox" id="local-require-key">
-          <label for="local-require-key">Clé API requise</label>
-        </div>
-
-        <div id="local-key-group" class="form-group hidden">
-          <label for="local-api-key">Clé API</label>
-          <div class="password-wrapper">
-            <input type="password" id="local-api-key" placeholder="Clé API du serveur local" autocomplete="off" spellcheck="false">
-            <button type="button" class="toggle-password" data-target="local-api-key" aria-label="Afficher/Masquer">👁️</button>
+          <!-- Formulaire d'ajout -->
+          <div class="add-action-form" id="add-action-form">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="new-action-title">Titre de l'action <span class="label-hint">— ex : 📝 Mon action</span></label>
+              <input type="text" id="new-action-title" placeholder="📝 Mon action personnalisée" autocomplete="off">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label for="new-action-prompt">Prompt système</label>
+              <textarea id="new-action-prompt" rows="5" placeholder="Décris ici ce que l'IA doit faire avec le texte sélectionné..."></textarea>
+            </div>
+            <div class="edit-panel-actions">
+              <button type="button" class="btn-sm btn-sm-ghost" id="cancel-add-btn">Annuler</button>
+              <button type="button" class="btn-sm btn-sm-primary" id="confirm-add-btn">Ajouter l'action</button>
+            </div>
           </div>
         </div>
+      </section>
 
-        <div>
-          <button type="button" class="test-btn" id="test-connection-btn">🔗 Tester la connexion</button>
-          <span id="test-result" class="test-result"></span>
-        </div>
-
-        <div class="info-box info-box-green">
-          <strong>Confidentialité maximale</strong>
-          Vos données ne quittent jamais votre ordinateur. Compatible avec tout serveur exposant une API au format OpenAI (Ollama, LM Studio, llama.cpp, vLLM, LocalAI, text-generation-webui...). Aucune connexion internet requise. Idéal pour la confidentialité maximale des données de santé.
-        </div>
-      </div>
-
-      <!-- OpenAI Direct fields -->
-      <div id="fields-openai" class="provider-fields">
-        <div class="form-group">
-          <span class="badge badge-warning">⚠️ Non conforme HDS</span>
-        </div>
-
-        <div class="form-group">
-          <label for="openai-api-key">
-            Clé API OpenAI
-            <span class="label-hint">— obligatoire</span>
-          </label>
-          <div class="password-wrapper">
-            <input type="password" id="openai-api-key" placeholder="sk-..." autocomplete="off" spellcheck="false">
-            <button type="button" class="toggle-password" data-target="openai-api-key" aria-label="Afficher/Masquer">👁️</button>
+      <!-- Section : Anonymisation -->
+      <section class="card" id="section-anonymize">
+        <div class="card-head">
+          <div class="card-icon"><svg class="i" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></div>
+          <div>
+            <h2>Anonymisation automatique</h2>
+            <p>Les données identifiantes sont remplacées avant tout envoi à l'API.</p>
           </div>
-          <p class="api-help">
-            Obtenez votre clé sur <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a>
+        </div>
+        <div class="card-body">
+          <div class="checkbox-row">
+            <input type="checkbox" id="anonymize-enabled" checked>
+            <label for="anonymize-enabled">Activer l'anonymisation automatique avant envoi</label>
+          </div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="rehydrate-enabled" checked>
+            <label for="rehydrate-enabled">Ré-identifier la réponse <span class="label-hint">— les données d'origine sont réinjectées localement à la place des placeholders</span></label>
+          </div>
+          <div class="checkbox-row" style="margin-bottom: 0;">
+            <input type="checkbox" id="confirm-before-send">
+            <label for="confirm-before-send">Vérifier le texte anonymisé avant envoi <span class="label-hint">— aperçu modifiable à chaque action</span></label>
+          </div>
+
+          <div class="form-group" style="margin-top: 16px;">
+            <label for="custom-acronyms">Acronymes à ne jamais anonymiser <span class="label-hint">— séparés par des virgules</span></label>
+            <input type="text" id="custom-acronyms" placeholder="ex : CPTS, MSP, DMP2" autocomplete="off" spellcheck="false">
+            <p class="api-help">Les sigles en capitales sont pris pour des noms de famille s'ils ne sont pas connus (une liste médicale intégrée couvre les plus courants). Ajoutez ici ceux de votre pratique.</p>
+          </div>
+
+          <div class="info-box info-box-blue">
+            <strong>Données détectées et remplacées automatiquement</strong>
+            <ul>
+              <li>Noms propres (titre de civilité + nom, « Prénom NOM », noms en MAJUSCULES)</li>
+              <li>Numéros de sécurité sociale (NIR)</li>
+              <li>Numéros IPP / dossier patient</li>
+              <li>Adresses email et numéros de téléphone</li>
+              <li>Dates en chiffres ou en toutes lettres (naissance, examens...)</li>
+              <li>Adresses postales (rue, code postal + ville)</li>
+            </ul>
+            <p style="margin-top: 8px;"><strong style="display:inline">L'anonymisation par regex n'est pas infaillible.</strong> Vérifiez toujours le texte sélectionné avant envoi. Seules des données anonymisées ou pseudonymisées doivent être traitées.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section : Contexte médecin -->
+      <section class="card" id="section-context">
+        <div class="card-head">
+          <div class="card-icon"><svg class="i" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+          <div>
+            <h2>Contexte médecin</h2>
+            <p>Injecté en tête de chaque prompt pour personnaliser les réponses.</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="form-group">
+            <label for="doctor-context">Informations personnelles <span class="label-hint">— injectées dans tous les prompts</span></label>
+            <textarea id="doctor-context" rows="4" placeholder="Ex : Dr. Martin, médecin généraliste à Lyon, spécialisé en gériatrie. Cabinet au 12 rue de la République, 69001 Lyon. RPPS 12345678901."></textarea>
+            <p class="api-help">
+              Ces informations seront ajoutées en contexte à chaque requête (courriers, certificats, signatures de secrétariat, etc.).
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section : Sauvegarde des réglages -->
+      <section class="card" id="section-backup">
+        <div class="card-head">
+          <div class="card-icon"><svg class="i" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg></div>
+          <div>
+            <h2>Sauvegarde des réglages</h2>
+            <p>Exportez vos préférences et vos actions personnalisées (jamais les clés API) pour les réinstaller sur un autre poste.</p>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="row-inline">
+            <button type="button" class="btn btn-secondary" id="export-btn">Exporter (JSON)</button>
+            <button type="button" class="btn btn-secondary" id="import-btn">Importer…</button>
+            <input type="file" id="import-file" accept="application/json,.json" hidden>
+            <span id="backup-result" class="test-result"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section : Mentions légales -->
+      <section class="card" id="section-legal">
+        <div class="card-head">
+          <div class="card-icon"><svg class="i" viewBox="0 0 24 24"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg></div>
+          <div>
+            <h2>Mentions légales</h2>
+            <p>Nature de l'outil, responsabilité et données.</p>
+          </div>
+        </div>
+        <div class="card-body legal-section">
+          <h3>Nature de l'outil</h3>
+          <p>Dachi est une extension de <strong>productivité rédactionnelle</strong>. Ce n'est <strong>pas un dispositif médical</strong> au sens du règlement (UE) 2017/745 (MDR). Les contenus générés sont des brouillons administratifs devant être relus et validés par le praticien.</p>
+
+          <h3>Responsabilité</h3>
+          <p>Le médecin utilisateur est seul responsable de l'usage qui est fait de l'extension, de la validation des contenus générés, et de la conformité de son infrastructure au RGPD et à la réglementation HDS.</p>
+
+          <h3>Données</h3>
+          <ul>
+            <li>Aucune donnée n'est stockée, journalisée ou transmise par l'extension en dehors du fournisseur d'API choisi par l'utilisateur.</li>
+            <li>Les clés API sont stockées sur ce poste uniquement (<code>chrome.storage.local</code>), jamais synchronisées via le compte Google. Les préférences et actions du menu utilisent <code>chrome.storage.sync</code>.</li>
+            <li>L'utilisateur est <strong>responsable de traitement</strong> au sens du RGPD. Un contrat de sous-traitance (art. 28) doit être signé avec le fournisseur d'API.</li>
+            <li>L'utilisateur s'engage à ne transmettre que des données <strong>anonymisées ou pseudonymisées</strong>.</li>
+          </ul>
+
+          <h3>Licence</h3>
+          <p>Extension open-source sous licence MIT, fournie « en l'état » sans garantie d'aucune sorte.</p>
+
+          <p style="margin-top: 16px;">
+            <button type="button" class="test-btn" id="review-cgu-btn">Relire les conditions d'utilisation</button>
           </p>
         </div>
+      </section>
 
-        <div class="info-box info-box-orange">
-          <strong>⚠️ Attention : données hors EEE</strong>
-          Avec OpenAI Direct, vos données (texte sélectionné, réponses) transitent par les serveurs OpenAI situés aux États-Unis. Cette option <strong>n'est pas conforme</strong> à la réglementation HDS française (article L.1111-8 du Code de la santé publique). Ne l'utilisez pas avec des données de santé à caractère personnel.
-        </div>
-      </div>
-    </div>
-
-    <!-- Section 2 : Modèle et paramètres -->
-    <div class="card">
-      <div class="card-title">
-        <span class="icon">🤖</span> Modèle et paramètres
-      </div>
-
-      <div class="form-group" id="model-group">
-        <label for="model">Modèle IA <span class="label-hint">— utilisé avec OpenAI Direct</span></label>
-        <select id="model">
-          <option value="gpt-4o">GPT-4o — Performant</option>
-          <option value="gpt-4o-mini">GPT-4o Mini — Rapide &amp; économique</option>
-          <option value="gpt-4-turbo">GPT-4 Turbo — Avancé</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="temperature">
-          Température
-          <span class="label-hint">— précision des réponses</span>
-        </label>
-        <div class="slider-wrapper">
-          <span style="font-size: 12px; color: var(--text-muted);">Précis</span>
-          <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.3">
-          <span style="font-size: 12px; color: var(--text-muted);">Créatif</span>
-          <span class="slider-value" id="temp-value">0.3</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Section : Actions du menu contextuel -->
-    <div class="card">
-      <div class="card-title">
-        <span class="icon">🖱️</span> Actions du menu contextuel
-      </div>
-
-      <p class="api-help" style="margin-bottom: 16px;">
-        Activez/désactivez les actions, modifiez leurs prompts, ou ajoutez vos propres actions personnalisées.
+      <!-- Footer -->
+      <p class="footer-info">
+        Dachi <span id="version-footer">v—</span> — Outil de productivité rédactionnelle. Aucune donnée n'est stockée par l'extension.<br>
+        <a href="#" id="revoke-cgu-link">Révoquer l'acceptation des CGU</a>
       </p>
 
-      <!-- Liste des items (injectée par options.js) -->
-      <div id="menu-items-list"></div>
-
-      <!-- Bouton ajouter -->
-      <button type="button" class="test-btn" id="add-action-btn" style="margin-top: 14px;">
-        ➕ Ajouter une action personnalisée
-      </button>
-
-      <!-- Formulaire d'ajout -->
-      <div class="add-action-form" id="add-action-form">
-        <div class="form-group" style="margin-bottom: 0;">
-          <label for="new-action-title">Titre de l'action <span class="label-hint">— ex: 📝 Mon action</span></label>
-          <input type="text" id="new-action-title" placeholder="📝 Mon action personnalisée" autocomplete="off">
-        </div>
-        <div class="form-group" style="margin-bottom: 0;">
-          <label for="new-action-prompt">Prompt système</label>
-          <textarea id="new-action-prompt" rows="5" placeholder="Décris ici ce que l'IA doit faire avec le texte sélectionné..."></textarea>
-        </div>
-        <div class="edit-panel-actions">
-          <button type="button" class="btn-sm btn-sm-ghost" id="cancel-add-btn">Annuler</button>
-          <button type="button" class="btn-sm btn-sm-primary" id="confirm-add-btn">✅ Ajouter l'action</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Section : Anonymisation -->
-    <div class="card">
-      <div class="card-title">
-        <span class="icon">🛡️</span> Anonymisation automatique
-      </div>
-
-      <div class="checkbox-row">
-        <input type="checkbox" id="anonymize-enabled" checked>
-        <label for="anonymize-enabled">Activer l'anonymisation automatique avant envoi</label>
-      </div>
-
-      <div class="info-box info-box-blue" style="margin-top: 12px;">
-        <strong>Données détectées et remplacées automatiquement :</strong>
-        <ul style="margin-top: 6px; padding-left: 20px;">
-          <li>Noms propres (titres civilité + noms en MAJUSCULES)</li>
-          <li>Numéros de sécurité sociale (NIR)</li>
-          <li>Numéros IPP / dossier patient</li>
-          <li>Adresses email et numéros de téléphone</li>
-          <li>Dates (naissance, examens...)</li>
-          <li>Adresses postales (rue, code postal + ville)</li>
-        </ul>
-        <p style="margin-top: 8px;"><strong>⚠️ L'anonymisation par regex n'est pas infaillible.</strong> Vérifiez toujours le texte sélectionné avant envoi. Seules des données anonymisées ou pseudonymisées doivent être traitées.</p>
-      </div>
-    </div>
-
-    <!-- Section 3 : Contexte médecin -->
-    <div class="card">
-      <div class="card-title">
-        <span class="icon">👨‍⚕️</span> Contexte médecin
-      </div>
-
-      <div class="form-group">
-        <label for="doctor-context">
-          Informations personnelles
-          <span class="label-hint">— injectées dans tous les prompts</span>
-        </label>
-        <textarea id="doctor-context" rows="4" placeholder="Ex : Dr. Martin, médecin généraliste à Lyon, spécialisé en gériatrie. Cabinet au 12 rue de la République, 69001 Lyon. RPPS 12345678901."></textarea>
-        <p class="api-help">
-          Ces informations seront ajoutées en contexte à chaque requête pour personnaliser les réponses
-          (courriers, certificats, signatures de secrétariat, etc.).
-        </p>
-      </div>
-    </div>
-
-    <!-- Bouton sauvegarder -->
-    <button type="button" class="save-btn" id="save-btn">
-      💾 Sauvegarder les paramètres
-    </button>
-
-    <!-- Section Mentions légales -->
-    <div class="card">
-      <div class="card-title">
-        <span class="icon">⚖️</span> Mentions légales
-      </div>
-      <div class="legal-section">
-        <h3>Nature de l'outil</h3>
-        <p>Dachi est une extension de <strong>productivité rédactionnelle</strong>. Ce n'est <strong>PAS un dispositif médical</strong> au sens du règlement (UE) 2017/745 (MDR). Les contenus générés sont des brouillons administratifs devant être relus et validés par le praticien.</p>
-
-        <h3>Responsabilité</h3>
-        <p>Le médecin utilisateur est seul responsable de l'usage qui est fait de l'extension, de la validation des contenus générés, et de la conformité de son infrastructure au RGPD et à la réglementation HDS.</p>
-
-        <h3>Données</h3>
-        <ul>
-          <li>Aucune donnée n'est stockée, journalisée ou transmise par l'extension en dehors du fournisseur d'API choisi par l'utilisateur.</li>
-          <li>Les clés API sont stockées via <code>chrome.storage.sync</code> (compte Google de l'utilisateur).</li>
-          <li>L'utilisateur est <strong>responsable de traitement</strong> au sens du RGPD. Un contrat de sous-traitance (art. 28) doit être signé avec le fournisseur d'API.</li>
-          <li>L'utilisateur s'engage à ne transmettre que des données <strong>anonymisées ou pseudonymisées</strong>.</li>
-        </ul>
-
-        <h3>Licence</h3>
-        <p>Extension open-source sous licence MIT, fournie « en l'état » sans garantie d'aucune sorte.</p>
-
-        <p style="margin-top: 14px;">
-          <button type="button" class="test-btn" id="review-cgu-btn">📖 Relire les conditions d'utilisation</button>
-        </p>
-      </div>
-    </div>
-
-    <!-- Footer -->
-    <p class="footer-info">
-      Dachi v1.2.0 — Outil de productivité rédactionnelle.<br>
-      Aucune donnée n'est stockée par l'extension. L'utilisateur reste seul responsable des contenus générés.<br>
-      <a href="#" id="revoke-cgu-link" style="color: var(--text-muted); font-size: 11px;">Révoquer l'acceptation des CGU</a>
-    </p>
-
+    </main>
   </div>
 
   <!-- Toast notification -->
-  <div class="toast" id="toast">✅ Paramètres sauvegardés avec succès</div>
+  <div class="toast" id="toast">
+    <svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M20 6 9 17l-5-5"/></svg>
+    <span id="toast-text">Paramètres sauvegardés</span>
+  </div>
 
-  <script src="options.js"></script>
+  <script type="module" src="options.js"></script>
 </body>
 </html>

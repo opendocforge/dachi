@@ -35,6 +35,14 @@ Actions disponibles via le clic droit sur du texte sélectionné :
 
 Chaque sortie est explicitement marquée comme **brouillon non validé**.
 
+Dans la modale de résultat : réponse affichée **en streaming**, boutons **Régénérer**, **Affiner** (consigne supplémentaire appliquée à la réponse précédente), **Copier** et **Remplacer la sélection**. Le dernier résultat peut être rouvert depuis le menu Dachi. Un raccourci clavier (<kbd>Alt</kbd>+<kbd>Maj</kbd>+<kbd>D</kbd>, modifiable dans `chrome://extensions/shortcuts`) lance l'action rapide choisie dans les options.
+
+## Anonymisation et ré-identification locales
+
+Avant tout envoi, les données identifiantes sont remplacées localement par des placeholders numérotés (`[NOM 1]`, `[DATE 2]`, `[TEL 3]`…) : noms (titre + nom, « Prénom NOM », noms en capitales), NIR, IPP, téléphones, emails, dates en chiffres ou en lettres, adresses, code postal + ville. Les sigles médicaux courants sont préservés ; vous pouvez ajouter les vôtres dans les options.
+
+La table de correspondance ne quitte jamais votre poste : elle sert à **ré-identifier la réponse** (les valeurs d'origine remplacent les placeholders dans le texte généré). Une option « Vérifier le texte anonymisé avant envoi » affiche un aperçu modifiable à chaque action.
+
 ## Fournisseurs API supportés
 
 | Fournisseur | Hébergement | Usage recommandé |
@@ -42,6 +50,7 @@ Chaque sortie est explicitement marquée comme **brouillon non validé**.
 | **Scaleway AI** | 🛡️ Serveur HDS (France) | Par défaut — infrastructure certifiée HDS |
 | **Serveur local** | 🔒 100% hors-ligne | Confidentialité maximale (Ollama, LM Studio...) |
 | **OpenAI Direct** | ⚠️ Hors EEE (USA) | À éviter pour tout contenu de santé |
+| **OpenRouter** | ⚠️ Hors EEE (routage multi-fournisseurs) | Accès à des centaines de modèles avec une seule clé (`sk-or-…`) ; `data_collection: deny` demandé par défaut. À éviter pour tout contenu de santé |
 
 ## Installation
 
@@ -60,13 +69,21 @@ Chaque sortie est explicitement marquée comme **brouillon non validé**.
 
 1. Créez une clé API sur [console.scaleway.com](https://console.scaleway.com/iam/api-keys)
 2. Dans les options Dachi, sélectionnez Scaleway et collez votre clé
-3. Choisissez le modèle (Qwen3.5 397B par défaut)
+3. Choisissez le modèle (Mistral Small 3.2 par défaut) — le bouton « Actualiser » charge la liste des modèles disponibles sur votre projet
 
 ### Serveur local
 
 1. Installez [Ollama](https://ollama.ai) ou [LM Studio](https://lmstudio.ai)
 2. Lancez le serveur (ex: `ollama serve`)
 3. Renseignez l'URL et le nom du modèle
+
+#### Serveur distant sur réseau privé (LAN, Tailscale, VPN)
+
+Le serveur peut tourner sur une autre machine que celle du cabinet, par exemple un PC à domicile joint via [Tailscale](https://tailscale.com) (chiffrement WireGuard de bout en bout, aucun tiers ne voit le contenu).
+
+1. Côté serveur, exposez Ollama sur l'IP Tailscale (`OLLAMA_HOST=100.x.y.z:11434`, puis redémarrez Ollama) — ou utilisez `tailscale serve --bg 11434` pour obtenir une URL HTTPS `*.ts.net` sans toucher à Ollama ni au pare-feu.
+2. Dans les options Dachi, renseignez l'URL (ex : `http://100.x.y.z:11434/v1`) et cliquez sur **Tester la connexion**.
+3. Chrome demande une fois l'autorisation d'accéder à cette adresse (`optional_host_permissions`) : acceptez. Les permissions par défaut de l'extension restent limitées à `localhost`.
 
 ## Cadre légal et responsabilité
 
@@ -82,7 +99,8 @@ Chaque sortie est explicitement marquée comme **brouillon non validé**.
 - L'extension **ne stocke aucune donnée** de santé.
 - L'extension **ne journalise rien**.
 - L'extension **ne transmet aucune donnée** en dehors du fournisseur API configuré par l'utilisateur.
-- Les clés API sont stockées localement via `chrome.storage.sync`.
+- Les clés API sont stockées dans `chrome.storage.local` (jamais synchronisées via le compte Google) ; seules les préférences et les actions du menu passent par `chrome.storage.sync`.
+- L'export des réglages (page d'options) ne contient jamais de clé API.
 
 ### Aucune garantie
 
@@ -93,22 +111,40 @@ Logiciel fourni « en l'état » sous licence MIT. Aucune garantie de résultat,
 - Clés API confinées au Service Worker (jamais exposées au DOM)
 - Communication chiffrée (HTTPS) avec les fournisseurs API
 - Aucun analytics, tracking ou télémétrie
-- Permissions Chrome minimales
+- Permissions Chrome minimales ; accès à un serveur distant accordé origine par origine, à la demande (`optional_host_permissions`)
+- Aucune ressource exposée aux sites web (`web_accessible_resources` vide : l'extension n'est pas détectable par les pages)
+- Modale rendue dans un **Shadow DOM fermé** : les scripts de la page hôte ne peuvent ni lire le texte généré ni actionner les boutons (seuls les clics réels de l'utilisateur sont pris en compte)
+- Le texte produit par le modèle est toujours traité comme du texte : il est échappé avant insertion dans la page (aucun HTML/script issu de l'IA n'est exécuté)
+- Import de réglages validé (types, fournisseur, URL) avec confirmation explicite si la destination des textes change
 - Code source intégralement auditable
 
 ## Architecture
 
 ```
 dachi/
-├── manifest.json       # Manifest V3
-├── background.js       # Service Worker (menu contextuel + API)
-├── content.js          # Modale de résultat
-├── content.css         # Styles modale
-├── options.html        # Page d'options + CGU
-├── options.js          # Logique options + CGU
-├── icons/              # Icônes extension
-└── LICENSE             # MIT
+├── manifest.json         # Manifest V3 (Service Worker en mode module)
+├── background.js         # Service Worker : menus, raccourci, pipeline anonymisation → API (streaming) → ré-identification
+├── content.js            # Modale de résultat (aperçu, streaming, régénérer / affiner, insertion)
+├── content.css           # Styles de la modale
+├── options.html / .js    # Page d'options + CGU (module ES)
+├── lib/
+│   ├── anonymizer.js     # Pseudonymisation locale + ré-identification
+│   ├── menu-defaults.js  # Actions par défaut (prompts + exemples few-shot), source unique
+│   ├── menu-store.js     # Persistance des actions (une clé sync par action, migration)
+│   ├── settings.js       # Réglages : défauts, secrets en storage.local, export
+│   └── utils.js          # Helpers purs (permissions d'origine, erreurs, parseur SSE)
+├── test/                 # Tests unitaires (node --test)
+├── icons/                # Icônes extension
+└── LICENSE               # MIT
 ```
+
+## Développement
+
+```bash
+npm test
+```
+
+Les tests couvrent l'anonymiseur (aller-retour, acronymes, régressions), le parseur de flux, la migration du stockage et le routage des secrets. Aucune dépendance : Node ≥ 20 suffit.
 
 ## Licence
 

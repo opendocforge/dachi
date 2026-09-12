@@ -1,809 +1,887 @@
 // ============================================================================
-// options.js — Logique de la page d'options multi-fournisseurs
-// Sauvegarde et restauration via chrome.storage.sync
+// options.js — Page d'options (module ES)
+// Réglages via lib/settings.js (secrets en storage.local, préférences en sync),
+// actions du menu via lib/menu-store.js (une clé par action), défauts partagés
+// avec le Service Worker via lib/menu-defaults.js.
 // ============================================================================
 
-(() => {
-  // -------------------------------------------------------------------------
-  // CGU — acceptation obligatoire au premier lancement
-  // -------------------------------------------------------------------------
-  const CGU_VERSION = "1.0";
-  const cguOverlay = document.getElementById("cgu-overlay");
-  const cguCheckbox = document.getElementById("cgu-accept-checkbox");
-  const cguAcceptBtn = document.getElementById("cgu-accept-btn");
-  const reviewCguBtn = document.getElementById("review-cgu-btn");
-  const revokeCguLink = document.getElementById("revoke-cgu-link");
+import { MENU_ITEMS } from "./lib/menu-defaults.js";
+import { loadSettings, saveSettings, exportableSettings, DEFAULT_SETTINGS, SECRET_KEYS } from "./lib/settings.js";
+import { loadMenuConfig, saveMenuItem, removeMenuItem, resolveMenuItems, MAX_ITEM_BYTES } from "./lib/menu-store.js";
+import { remoteOriginPattern, resolveModelId } from "./lib/utils.js";
 
-  chrome.storage.sync.get({ cguAccepted: "", cguAcceptedAt: "" }, (items) => {
-    if (items.cguAccepted !== CGU_VERSION) {
-      cguOverlay.classList.remove("hidden");
+const CGU_VERSION = "1.0";
+const $ = (id) => document.getElementById(id);
+
+// ---------------------------------------------------------------------------
+// Version (depuis le manifest)
+// ---------------------------------------------------------------------------
+{
+  const v = chrome.runtime.getManifest().version;
+  $("version-pill").textContent = `v${v}`;
+  $("version-footer").textContent = `v${v}`;
+}
+
+// ---------------------------------------------------------------------------
+// Toast
+// ---------------------------------------------------------------------------
+const toast = $("toast");
+const toastText = $("toast-text");
+let toastTimer = null;
+function showToast(message = "Paramètres sauvegardés", isError = false) {
+  toastText.textContent = message;
+  toast.classList.toggle("error", isError);
+  toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("show"), isError ? 5000 : 2500);
+}
+
+function storageErrorMessage(err) {
+  if (err && err.message === "QUOTA") {
+    return `Cette action est trop volumineuse pour être synchronisée (${err.size} octets, limite ${MAX_ITEM_BYTES}). Raccourcissez le prompt ou les exemples.`;
+  }
+  const msg = (err && err.message) || String(err);
+  if (/QUOTA/i.test(msg)) return "Espace de synchronisation Chrome saturé. Réduisez les prompts / exemples ou supprimez des actions.";
+  return `Enregistrement impossible : ${msg}`;
+}
+
+// ---------------------------------------------------------------------------
+// CGU — acceptation obligatoire au premier lancement
+// ---------------------------------------------------------------------------
+const cguOverlay = $("cgu-overlay");
+const cguCheckbox = $("cgu-accept-checkbox");
+const cguAcceptBtn = $("cgu-accept-btn");
+
+cguCheckbox.addEventListener("change", () => { cguAcceptBtn.disabled = !cguCheckbox.checked; });
+
+cguAcceptBtn.addEventListener("click", async () => {
+  if (!cguCheckbox.checked) return;
+  await saveSettings({ cguAccepted: CGU_VERSION, cguAcceptedAt: new Date().toISOString() });
+  cguOverlay.classList.add("hidden");
+});
+
+$("review-cgu-btn").addEventListener("click", () => {
+  cguCheckbox.checked = false;
+  cguAcceptBtn.disabled = true;
+  cguOverlay.classList.remove("hidden");
+});
+
+$("revoke-cgu-link").addEventListener("click", async (e) => {
+  e.preventDefault();
+  if (!confirm("Révoquer l'acceptation des CGU ? Elles devront être acceptées à nouveau.")) return;
+  await saveSettings({ cguAccepted: "", cguAcceptedAt: "" });
+  cguCheckbox.checked = false;
+  cguAcceptBtn.disabled = true;
+  cguOverlay.classList.remove("hidden");
+});
+
+// ---------------------------------------------------------------------------
+// Références DOM
+// ---------------------------------------------------------------------------
+const providerSelect = $("provider");
+const fields = { scaleway: $("fields-scaleway"), local: $("fields-local"), openai: $("fields-openai"), openrouter: $("fields-openrouter") };
+
+const scalewayApiKeyInput = $("scaleway-api-key");
+const scalewayProjectIdInput = $("scaleway-project-id");
+const scalewayModelInput = $("scaleway-model");
+
+const localServerUrlInput = $("local-server-url");
+const localModelInput = $("local-model");
+const localRequireKeyCheckbox = $("local-require-key");
+const localApiKeyInput = $("local-api-key");
+const localKeyGroup = $("local-key-group");
+const localRemoteHint = $("local-remote-hint");
+const testConnectionBtn = $("test-connection-btn");
+const testResultSpan = $("test-result");
+
+const openaiApiKeyInput = $("openai-api-key");
+const modelInput = $("model");
+const modelGroup = $("model-group");
+
+const openrouterApiKeyInput = $("openrouter-api-key");
+const openrouterModelInput = $("openrouter-model");
+
+const temperatureSlider = $("temperature");
+const tempValueDisplay = $("temp-value");
+const streamEnabledCheckbox = $("stream-enabled");
+const maxTokensSelect = $("max-tokens");
+const quickActionSelect = $("quick-action");
+const doctorContextTextarea = $("doctor-context");
+
+const anonymizeCheckbox = $("anonymize-enabled");
+const rehydrateCheckbox = $("rehydrate-enabled");
+const confirmBeforeSendCheckbox = $("confirm-before-send");
+const customAcronymsInput = $("custom-acronyms");
+
+const saveBtn = $("save-btn");
+
+// ---------------------------------------------------------------------------
+// 1. Affichage des champs selon le fournisseur
+// ---------------------------------------------------------------------------
+function updateProviderFields() {
+  const provider = providerSelect.value;
+  for (const [k, node] of Object.entries(fields)) node.classList.toggle("active", provider === k);
+  modelGroup.style.display = provider === "openai" ? "" : "none";
+}
+providerSelect.addEventListener("change", updateProviderFields);
+
+localRequireKeyCheckbox.addEventListener("change", () => {
+  localKeyGroup.classList.toggle("hidden", !localRequireKeyCheckbox.checked);
+});
+
+document.querySelectorAll(".toggle-password").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const input = $(btn.getAttribute("data-target"));
+    if (!input) return;
+    const isPassword = input.type === "password";
+    input.type = isPassword ? "text" : "password";
+    btn.textContent = isPassword ? "🔒" : "👁️";
+  });
+});
+
+temperatureSlider.addEventListener("input", () => { tempValueDisplay.textContent = temperatureSlider.value; });
+
+// ---------------------------------------------------------------------------
+// 2. Serveur distant (Tailscale, LAN, VPN) — autorisation d'origine
+// ---------------------------------------------------------------------------
+/**
+ * Demande à Chrome l'accès à l'origine du serveur si nécessaire. Doit être le
+ * PREMIER await d'un gestionnaire de clic / raccourci clavier (geste utilisateur).
+ */
+async function ensureRemoteOriginPermission(urlString) {
+  const pattern = remoteOriginPattern(urlString);
+  if (!pattern) return true;
+  try {
+    return await chrome.permissions.request({ origins: [pattern] });
+  } catch (_) {
+    return false;
+  }
+}
+
+async function updateRemoteHint(deniedPattern = null) {
+  const pattern = remoteOriginPattern(localServerUrlInput.value.trim());
+  if (!pattern) { localRemoteHint.classList.add("hidden"); return; }
+  localRemoteHint.classList.remove("hidden");
+
+  if (deniedPattern) {
+    localRemoteHint.textContent = `⚠️ Autorisation refusée pour ${deniedPattern} — Dachi ne pourra pas joindre ce serveur. Cliquez sur « Tester la connexion » pour la redemander.`;
+    localRemoteHint.style.color = "var(--danger-text)";
+    return;
+  }
+  let granted = false;
+  try { granted = await chrome.permissions.contains({ origins: [pattern] }); } catch (_) {}
+  localRemoteHint.textContent = granted
+    ? `✅ Serveur distant autorisé (${pattern}).`
+    : `🔐 Serveur distant détecté : Chrome demandera l'autorisation d'accéder à ${pattern} lors du test ou de la sauvegarde.`;
+  localRemoteHint.style.color = granted ? "var(--success-text)" : "";
+}
+localServerUrlInput.addEventListener("input", () => updateRemoteHint());
+
+// ---------------------------------------------------------------------------
+// 3. Lecture des champs → objet réglages
+// ---------------------------------------------------------------------------
+function readForm() {
+  return {
+    provider: providerSelect.value,
+    scalewayApiKey: scalewayApiKeyInput.value.trim(),
+    scalewayProjectId: scalewayProjectIdInput.value.trim(),
+    scalewayModel: scalewayModelInput.value.trim() || DEFAULT_SETTINGS.scalewayModel,
+    localServerUrl: localServerUrlInput.value.trim() || DEFAULT_SETTINGS.localServerUrl,
+    localModel: localModelInput.value.trim() || DEFAULT_SETTINGS.localModel,
+    localRequireKey: localRequireKeyCheckbox.checked,
+    localApiKey: localApiKeyInput.value.trim(),
+    apiKey: openaiApiKeyInput.value.trim(),
+    model: modelInput.value.trim() || DEFAULT_SETTINGS.model,
+    openrouterApiKey: openrouterApiKeyInput.value.trim(),
+    openrouterModel: resolveModelInput("openrouter") || DEFAULT_SETTINGS.openrouterModel,
+    temperature: parseFloat(temperatureSlider.value),
+    streamEnabled: streamEnabledCheckbox.checked,
+    maxTokens: parseInt(maxTokensSelect.value, 10) || DEFAULT_SETTINGS.maxTokens,
+    quickActionId: quickActionSelect.value || DEFAULT_SETTINGS.quickActionId,
+    doctorContext: doctorContextTextarea.value.trim(),
+    anonymizeEnabled: anonymizeCheckbox.checked,
+    rehydrateEnabled: rehydrateCheckbox.checked,
+    confirmBeforeSend: confirmBeforeSendCheckbox.checked,
+    customAcronyms: customAcronymsInput.value.trim()
+  };
+}
+
+function fillForm(s) {
+  providerSelect.value = s.provider;
+  scalewayApiKeyInput.value = s.scalewayApiKey;
+  scalewayProjectIdInput.value = s.scalewayProjectId || "";
+  scalewayModelInput.value = s.scalewayModel;
+  localServerUrlInput.value = s.localServerUrl;
+  localModelInput.value = s.localModel;
+  localRequireKeyCheckbox.checked = s.localRequireKey;
+  localApiKeyInput.value = s.localApiKey;
+  openaiApiKeyInput.value = s.apiKey;
+  modelInput.value = s.model;
+  openrouterApiKeyInput.value = s.openrouterApiKey || "";
+  openrouterModelInput.value = s.openrouterModel || "";
+  temperatureSlider.value = s.temperature;
+  tempValueDisplay.textContent = s.temperature;
+  streamEnabledCheckbox.checked = s.streamEnabled;
+  maxTokensSelect.value = String(s.maxTokens || DEFAULT_SETTINGS.maxTokens);
+  if (maxTokensSelect.value !== String(s.maxTokens || DEFAULT_SETTINGS.maxTokens)) maxTokensSelect.value = String(DEFAULT_SETTINGS.maxTokens);
+  doctorContextTextarea.value = s.doctorContext;
+  anonymizeCheckbox.checked = s.anonymizeEnabled;
+  rehydrateCheckbox.checked = s.rehydrateEnabled;
+  confirmBeforeSendCheckbox.checked = s.confirmBeforeSend;
+  customAcronymsInput.value = s.customAcronyms || "";
+  quickActionSelect.value = s.quickActionId;
+
+  updateProviderFields();
+  localKeyGroup.classList.toggle("hidden", !s.localRequireKey);
+  updateRemoteHint();
+}
+
+// ---------------------------------------------------------------------------
+// 4. Tests de connexion
+// ---------------------------------------------------------------------------
+testConnectionBtn.addEventListener("click", async () => {
+  testConnectionBtn.disabled = true;
+  testConnectionBtn.textContent = "⏳ Test en cours...";
+  testResultSpan.textContent = "";
+  testResultSpan.className = "test-result";
+
+  try {
+    const config = {
+      localServerUrl: localServerUrlInput.value.trim(),
+      localRequireKey: localRequireKeyCheckbox.checked,
+      localApiKey: localApiKeyInput.value.trim()
+    };
+    if (!(await ensureRemoteOriginPermission(config.localServerUrl))) {
+      updateRemoteHint(remoteOriginPattern(config.localServerUrl));
+      throw new Error(`Autorisation refusée pour ${remoteOriginPattern(config.localServerUrl)}`);
     }
-  });
+    updateRemoteHint();
 
-  cguCheckbox.addEventListener("change", () => {
-    cguAcceptBtn.disabled = !cguCheckbox.checked;
-  });
-
-  cguAcceptBtn.addEventListener("click", () => {
-    if (!cguCheckbox.checked) return;
-    chrome.storage.sync.set({
-      cguAccepted: CGU_VERSION,
-      cguAcceptedAt: new Date().toISOString()
-    }, () => {
-      cguOverlay.classList.add("hidden");
-    });
-  });
-
-  reviewCguBtn.addEventListener("click", () => {
-    cguCheckbox.checked = false;
-    cguAcceptBtn.disabled = true;
-    cguOverlay.classList.remove("hidden");
-  });
-
-  revokeCguLink.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (confirm("Révoquer l'acceptation des CGU ? Elles devront être acceptées à nouveau.")) {
-      chrome.storage.sync.set({ cguAccepted: "", cguAcceptedAt: "" }, () => {
-        cguCheckbox.checked = false;
-        cguAcceptBtn.disabled = true;
-        cguOverlay.classList.remove("hidden");
-      });
-    }
-  });
-
-  // -------------------------------------------------------------------------
-  // Références DOM
-  // -------------------------------------------------------------------------
-  const providerSelect = document.getElementById("provider");
-
-  // Scaleway
-  const scalewayApiKeyInput = document.getElementById("scaleway-api-key");
-  const scalewayProjectIdInput = document.getElementById("scaleway-project-id");
-  const scalewayModelSelect = document.getElementById("scaleway-model");
-
-  // Local
-  const localServerUrlInput = document.getElementById("local-server-url");
-  const localModelInput = document.getElementById("local-model");
-  const localRequireKeyCheckbox = document.getElementById("local-require-key");
-  const localApiKeyInput = document.getElementById("local-api-key");
-  const localKeyGroup = document.getElementById("local-key-group");
-  const testConnectionBtn = document.getElementById("test-connection-btn");
-  const testResultSpan = document.getElementById("test-result");
-
-  // OpenAI Direct
-  const openaiApiKeyInput = document.getElementById("openai-api-key");
-
-  // Anonymisation
-  const anonymizeCheckbox = document.getElementById("anonymize-enabled");
-
-  // Commun
-  const modelSelect = document.getElementById("model");
-  const modelGroup = document.getElementById("model-group");
-  const temperatureSlider = document.getElementById("temperature");
-  const tempValueDisplay = document.getElementById("temp-value");
-  const doctorContextTextarea = document.getElementById("doctor-context");
-  const saveBtn = document.getElementById("save-btn");
-  const toast = document.getElementById("toast");
-
-  // Provider field containers
-  const fieldsScaleway = document.getElementById("fields-scaleway");
-  const fieldsLocal = document.getElementById("fields-local");
-  const fieldsOpenai = document.getElementById("fields-openai");
-
-  // -------------------------------------------------------------------------
-  // 1. Basculer l'affichage des champs selon le fournisseur
-  // -------------------------------------------------------------------------
-  function updateProviderFields() {
-    const provider = providerSelect.value;
-
-    fieldsScaleway.classList.toggle("active", provider === "scaleway");
-    fieldsLocal.classList.toggle("active", provider === "local");
-    fieldsOpenai.classList.toggle("active", provider === "openai");
-
-    // Le sélecteur de modèle n'est pertinent que pour OpenAI Direct
-    if (provider === "openai") {
-      modelGroup.style.display = "";
-    } else {
-      modelGroup.style.display = "none";
-    }
+    const result = await chrome.runtime.sendMessage({ action: "testConnection", config });
+    testResultSpan.textContent = result && result.ok ? "✅ Connecté" : "❌ " + (result?.error || "Erreur inconnue");
+    testResultSpan.className = "test-result " + (result && result.ok ? "success" : "error");
+  } catch (err) {
+    testResultSpan.textContent = "❌ " + err.message;
+    testResultSpan.className = "test-result error";
   }
 
-  providerSelect.addEventListener("change", updateProviderFields);
+  testConnectionBtn.disabled = false;
+  testConnectionBtn.textContent = "🔗 Tester la connexion";
+});
 
-  // -------------------------------------------------------------------------
-  // 2. Toggle clé API locale
-  // -------------------------------------------------------------------------
-  localRequireKeyCheckbox.addEventListener("change", () => {
-    localKeyGroup.classList.toggle("hidden", !localRequireKeyCheckbox.checked);
-  });
+const testScalewayBtn = $("test-scaleway-btn");
+const testScalewayResult = $("test-scaleway-result");
+testScalewayBtn.addEventListener("click", async () => {
+  testScalewayBtn.disabled = true;
+  const oldLabel = testScalewayBtn.textContent;
+  testScalewayBtn.textContent = "⏳ Test en cours...";
+  testScalewayResult.textContent = "";
+  testScalewayResult.style.color = "";
 
-  // -------------------------------------------------------------------------
-  // 3. Toggle password visibility (délégation)
-  // -------------------------------------------------------------------------
-  document.querySelectorAll(".toggle-password").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const targetId = btn.getAttribute("data-target");
-      const input = document.getElementById(targetId);
-      if (!input) return;
-      const isPassword = input.type === "password";
-      input.type = isPassword ? "text" : "password";
-      btn.textContent = isPassword ? "🔒" : "👁️";
+  try {
+    const result = await chrome.runtime.sendMessage({
+      action: "testScaleway",
+      config: {
+        scalewayApiKey: scalewayApiKeyInput.value.trim(),
+        scalewayProjectId: scalewayProjectIdInput.value.trim(),
+        scalewayModel: scalewayModelInput.value.trim()
+      }
     });
-  });
+    testScalewayResult.textContent = result && result.ok ? "✅ " + (result.info || "Connexion réussie.") : "❌ " + (result?.error || "Erreur inconnue");
+    testScalewayResult.style.color = result && result.ok ? "var(--success-text)" : "var(--danger-text)";
+  } catch (err) {
+    testScalewayResult.textContent = "❌ " + err.message;
+    testScalewayResult.style.color = "var(--danger-text)";
+  }
 
-  // -------------------------------------------------------------------------
-  // 4. Restaurer les paramètres sauvegardés
-  // -------------------------------------------------------------------------
-  chrome.storage.sync.get(
-    {
-      provider: "scaleway",
-      scalewayApiKey: "",
-      scalewayProjectId: "",
-      scalewayModel: "qwen3.5-397b-a17b",
-      localServerUrl: "http://localhost:11434/v1",
-      localModel: "llama3",
-      localRequireKey: false,
-      localApiKey: "",
-      apiKey: "",
-      model: "gpt-4o",
-      temperature: 0.3,
-      doctorContext: "",
-      anonymizeEnabled: true
-    },
-    (items) => {
-      providerSelect.value = items.provider;
-      scalewayApiKeyInput.value = items.scalewayApiKey;
-      scalewayProjectIdInput.value = items.scalewayProjectId || "";
-      scalewayModelSelect.value = items.scalewayModel;
-      localServerUrlInput.value = items.localServerUrl;
-      localModelInput.value = items.localModel;
-      localRequireKeyCheckbox.checked = items.localRequireKey;
-      localApiKeyInput.value = items.localApiKey;
-      openaiApiKeyInput.value = items.apiKey;
-      modelSelect.value = items.model;
-      temperatureSlider.value = items.temperature;
-      tempValueDisplay.textContent = items.temperature;
-      doctorContextTextarea.value = items.doctorContext;
-      anonymizeCheckbox.checked = items.anonymizeEnabled;
+  testScalewayBtn.disabled = false;
+  testScalewayBtn.textContent = oldLabel;
+});
 
-      // Appliquer l'état initial
-      updateProviderFields();
-      localKeyGroup.classList.toggle("hidden", !items.localRequireKey);
+const testOpenRouterBtn = $("test-openrouter-btn");
+const testOpenRouterResult = $("test-openrouter-result");
+testOpenRouterBtn.addEventListener("click", async () => {
+  testOpenRouterBtn.disabled = true;
+  const oldLabel = testOpenRouterBtn.textContent;
+  testOpenRouterBtn.textContent = "⏳ Test en cours...";
+  testOpenRouterResult.textContent = "";
+  testOpenRouterResult.style.color = "";
+
+  try {
+    const result = await chrome.runtime.sendMessage({
+      action: "testOpenRouter",
+      config: {
+        openrouterApiKey: openrouterApiKeyInput.value.trim(),
+        openrouterModel: resolveModelInput("openrouter")
+      }
+    });
+    testOpenRouterResult.textContent = result && result.ok ? "✅ " + (result.info || "Connexion réussie.") : "❌ " + (result?.error || "Erreur inconnue");
+    testOpenRouterResult.style.color = result && result.ok ? "var(--success-text)" : "var(--danger-text)";
+  } catch (err) {
+    testOpenRouterResult.textContent = "❌ " + err.message;
+    testOpenRouterResult.style.color = "var(--danger-text)";
+  }
+
+  testOpenRouterBtn.disabled = false;
+  testOpenRouterBtn.textContent = oldLabel;
+});
+
+// ---------------------------------------------------------------------------
+// 5. Liste des modèles (GET /v1/models du fournisseur)
+// ---------------------------------------------------------------------------
+const MODEL_LIST_INPUTS = { scaleway: scalewayModelInput, local: localModelInput, openai: modelInput, openrouter: openrouterModelInput };
+const MODEL_LIST_IDS = { scaleway: "scaleway-models", local: "local-models", openai: "openai-models", openrouter: "openrouter-models" };
+
+// Catalogues chargés (par fournisseur) : [{ id, name }]
+const modelCaches = {};
+
+function normalizeModelList(models) {
+  return (models || []).map(m => (typeof m === "string" ? { id: m, name: m } : m)).filter(m => m && m.id);
+}
+
+function fillDatalist(provider, models) {
+  const list = normalizeModelList(models);
+  modelCaches[provider] = list;
+  const dl = $(MODEL_LIST_IDS[provider]);
+  dl.innerHTML = "";
+  for (const m of list) {
+    const opt = document.createElement("option");
+    opt.value = m.id;
+    if (m.name && m.name !== m.id) opt.label = m.name;   // Chrome affiche « id — nom » et filtre sur les deux
+    dl.appendChild(opt);
+  }
+}
+
+/**
+ * Remplace un nom d'affichage saisi (« Ling 3.0 Flash VL ») par l'identifiant
+ * attendu par l'API (« inclusionai/ling-3.0-flash-vl ») quand le catalogue le
+ * permet. Renvoie l'identifiant retenu.
+ */
+function resolveModelInput(provider) {
+  const input = MODEL_LIST_INPUTS[provider];
+  const help = document.querySelector(`[data-models-help="${provider}"]`);
+  const value = input.value.trim();
+  const list = modelCaches[provider] || [];
+  if (!value) return value;
+  if (!list.length) {
+    if (provider === "openrouter" && !value.includes("/") && help) {
+      help.textContent = `⚠️ L'API attend un identifiant « fournisseur/modèle ». Cliquez sur « Actualiser » : le nom « ${value} » sera résolu automatiquement.`;
+      help.style.color = "var(--warning-text)";
     }
-  );
+    return value;
+  }
+  const resolved = resolveModelId(value, list);
+  if (resolved && resolved !== value) {
+    input.value = resolved;
+    if (help) { help.textContent = `↪ « ${value} » résolu en « ${resolved} ».`; help.style.color = "var(--success-text)"; }
+    return resolved;
+  }
+  if (!resolved && provider === "openrouter" && !value.includes("/") && help) {
+    help.textContent = `⚠️ « ${value} » ne correspond à aucun modèle du catalogue — l'API attend un identifiant « fournisseur/modèle ».`;
+    help.style.color = "var(--warning-text)";
+  }
+  return value;
+}
 
-  // -------------------------------------------------------------------------
-  // 5. Mise à jour en temps réel du slider
-  // -------------------------------------------------------------------------
-  temperatureSlider.addEventListener("input", () => {
-    tempValueDisplay.textContent = temperatureSlider.value;
-  });
+for (const provider of Object.keys(MODEL_LIST_INPUTS)) {
+  MODEL_LIST_INPUTS[provider].addEventListener("change", () => resolveModelInput(provider));
+}
 
-  // -------------------------------------------------------------------------
-  // 6. Test de connexion au serveur local
-  // -------------------------------------------------------------------------
-  testConnectionBtn.addEventListener("click", async () => {
-    testConnectionBtn.disabled = true;
-    testConnectionBtn.textContent = "⏳ Test en cours...";
-    testResultSpan.textContent = "";
-    testResultSpan.className = "test-result";
+document.querySelectorAll("[data-list-models]").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    const provider = btn.getAttribute("data-list-models");
+    const help = document.querySelector(`[data-models-help="${provider}"]`);
+    btn.disabled = true;
+    const oldLabel = btn.textContent;
+    btn.textContent = "⏳";
+    help.style.color = "";
 
     try {
-      const config = {
-        localServerUrl: localServerUrlInput.value.trim(),
-        localRequireKey: localRequireKeyCheckbox.checked,
-        localApiKey: localApiKeyInput.value.trim()
-      };
-
-      const result = await chrome.runtime.sendMessage({
-        action: "testConnection",
-        config: config
-      });
-
-      if (result && result.ok) {
-        testResultSpan.textContent = "✅ Connecté";
-        testResultSpan.className = "test-result success";
+      const config = readForm();
+      if (provider === "local" && !(await ensureRemoteOriginPermission(config.localServerUrl))) {
+        throw new Error("Autorisation Chrome refusée pour ce serveur.");
+      }
+      const result = await chrome.runtime.sendMessage({ action: "listModels", provider, config });
+      if (!result || !result.ok) throw new Error(result?.error || "Erreur inconnue");
+      fillDatalist(provider, result.models);
+      await chrome.storage.local.set({ [`modelCache_${provider}`]: modelCaches[provider] });
+      const count = modelCaches[provider].length;
+      help.textContent = count
+        ? `${count} modèle${count > 1 ? "s" : ""} disponible${count > 1 ? "s" : ""} — tapez un nom ou un identifiant dans le champ pour filtrer.`
+        : "Aucun modèle renvoyé par le fournisseur.";
+      if (count && !MODEL_LIST_INPUTS[provider].value.trim()) {
+        MODEL_LIST_INPUTS[provider].value = modelCaches[provider][0].id;
       } else {
-        testResultSpan.textContent = "❌ " + (result?.error || "Erreur inconnue");
-        testResultSpan.className = "test-result error";
+        resolveModelInput(provider);
       }
     } catch (err) {
-      testResultSpan.textContent = "❌ " + err.message;
-      testResultSpan.className = "test-result error";
+      help.textContent = "❌ " + err.message;
+      help.style.color = "var(--danger-text)";
     }
 
-    testConnectionBtn.disabled = false;
-    testConnectionBtn.textContent = "🔗 Tester la connexion";
+    btn.disabled = false;
+    btn.textContent = oldLabel;
   });
+});
 
-  // -------------------------------------------------------------------------
-  // 6bis. Test de connexion Scaleway
-  // -------------------------------------------------------------------------
-  const testScalewayBtn = document.getElementById("test-scaleway-btn");
-  const testScalewayResult = document.getElementById("test-scaleway-result");
-  if (testScalewayBtn) {
-    testScalewayBtn.addEventListener("click", async () => {
-      testScalewayBtn.disabled = true;
-      const oldLabel = testScalewayBtn.textContent;
-      testScalewayBtn.textContent = "⏳ Test en cours...";
-      testScalewayResult.textContent = "";
-      testScalewayResult.style.color = "";
+async function restoreModelCaches() {
+  const cache = await chrome.storage.local.get(Object.keys(MODEL_LIST_IDS).map(p => `modelCache_${p}`));
+  for (const provider of Object.keys(MODEL_LIST_IDS)) {
+    const list = cache[`modelCache_${provider}`];
+    if (Array.isArray(list) && list.length) fillDatalist(provider, list);
+  }
+}
 
+// ---------------------------------------------------------------------------
+// 6. Raccourci clavier
+// ---------------------------------------------------------------------------
+$("shortcuts-btn").addEventListener("click", () => {
+  chrome.tabs.create({ url: "chrome://extensions/shortcuts" });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Sauvegarder
+// ---------------------------------------------------------------------------
+saveBtn.addEventListener("click", async () => {
+  const settings = readForm();
+
+  // Serveur distant : demander l'autorisation AVANT toute autre opération
+  // asynchrone (geste utilisateur requis). Un refus n'empêche pas la sauvegarde.
+  let deniedPattern = null;
+  if (settings.provider === "local" && !(await ensureRemoteOriginPermission(settings.localServerUrl))) {
+    deniedPattern = remoteOriginPattern(settings.localServerUrl);
+  }
+
+  try {
+    await saveSettings(settings);
+  } catch (err) {
+    showToast(storageErrorMessage(err), true);
+    return;
+  }
+
+  saveBtn.textContent = "Sauvegardé ✓";
+  saveBtn.classList.add("success");
+  showToast();
+  updateRemoteHint(deniedPattern);
+  setTimeout(() => {
+    saveBtn.textContent = "Sauvegarder les paramètres";
+    saveBtn.classList.remove("success");
+  }, 2000);
+});
+
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+    e.preventDefault();
+    saveBtn.click();
+  }
+});
+
+// ===========================================================================
+// 8. Actions du menu contextuel (CRUD)
+// ===========================================================================
+const menuList = $("menu-items-list");
+const addActionBtn = $("add-action-btn");
+const addActionForm = $("add-action-form");
+const newTitleInput = $("new-action-title");
+const newPromptInput = $("new-action-prompt");
+const cancelAddBtn = $("cancel-add-btn");
+const confirmAddBtn = $("confirm-add-btn");
+
+let menuConfig = { overrides: {}, custom: [] };
+
+async function loadMenuItems() {
+  menuConfig = await loadMenuConfig();
+  renderMenuItems();
+}
+
+function currentItems() {
+  return resolveMenuItems(MENU_ITEMS, menuConfig);
+}
+
+function renderMenuItems() {
+  menuList.innerHTML = "";
+  const items = currentItems();
+  for (const item of items) menuList.appendChild(buildRow(item));
+  renderQuickActionOptions(items);
+}
+
+function renderQuickActionOptions(items) {
+  const current = quickActionSelect.value || DEFAULT_SETTINGS.quickActionId;
+  quickActionSelect.innerHTML = "";
+  for (const item of items) {
+    const opt = document.createElement("option");
+    opt.value = item.id;
+    opt.textContent = item.title + (item.enabled ? "" : " (désactivée)");
+    quickActionSelect.appendChild(opt);
+  }
+  quickActionSelect.value = items.some(i => i.id === current) ? current : (items[0] ? items[0].id : "");
+}
+
+/** Persiste une action puis re-rend ; affiche l'erreur (quota…) le cas échéant. */
+async function persistItem(item, data, onDone) {
+  try {
+    if (item.isDefault) {
+      if (Object.keys(data).length === 0) {
+        await removeMenuItem(item.id);
+        delete menuConfig.overrides[item.id];
+      } else {
+        await saveMenuItem(item.id, data);
+        menuConfig.overrides[item.id] = data;
+      }
+    } else {
+      await saveMenuItem(item.id, { custom: true, ...data });
+      const idx = menuConfig.custom.findIndex(c => c.id === item.id);
+      const entry = { id: item.id, title: data.title, prompt: data.prompt, examples: data.examples || [], enabled: data.enabled !== false };
+      if (idx >= 0) menuConfig.custom[idx] = entry; else menuConfig.custom.push(entry);
+    }
+    chrome.runtime.sendMessage({ action: "rebuildMenus" }).catch(() => {});
+    if (onDone) onDone();
+    return true;
+  } catch (err) {
+    showToast(storageErrorMessage(err), true);
+    return false;
+  }
+}
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
+
+function iconButton(label, title, extraClass = "") {
+  const b = el("button", `icon-btn ${extraClass}`.trim(), label);
+  b.type = "button";
+  b.title = title;
+  return b;
+}
+
+function buildRow(item) {
+  const { id, title, prompt, examples, enabled, isDefault, override } = item;
+  const wrapper = document.createElement("div");
+
+  const row = el("div", "menu-item-row");
+
+  // Toggle
+  const toggleLabel = el("label", "menu-item-toggle");
+  const toggleInput = document.createElement("input");
+  toggleInput.type = "checkbox";
+  toggleInput.checked = enabled;
+  toggleInput.setAttribute("aria-label", `Activer ${title}`);
+  toggleLabel.appendChild(toggleInput);
+  toggleLabel.appendChild(el("span", "toggle-slider"));
+
+  const labelEl = el("span", "menu-item-label" + (enabled ? "" : " disabled"), title);
+  const badge = el("span", "menu-item-badge " + (isDefault ? "badge-default" : "badge-custom"), isDefault ? "Défaut" : "Perso");
+
+  const actionsEl = el("div", "menu-item-actions");
+  const editBtn = iconButton("✏️", "Modifier");
+  actionsEl.appendChild(editBtn);
+
+  if (!isDefault) {
+    const delBtn = iconButton("🗑️", "Supprimer", "danger");
+    delBtn.addEventListener("click", async () => {
+      if (!confirm(`Supprimer "${title}" ?`)) return;
       try {
-        const config = {
-          scalewayApiKey: scalewayApiKeyInput.value.trim(),
-          scalewayProjectId: scalewayProjectIdInput.value.trim(),
-          scalewayModel: scalewayModelSelect.value
-        };
-        const result = await chrome.runtime.sendMessage({
-          action: "testScaleway",
-          config: config
-        });
-        if (result && result.ok) {
-          testScalewayResult.textContent = "✅ " + (result.info || "Connexion réussie.");
-          testScalewayResult.style.color = "#16A34A";
-        } else {
-          testScalewayResult.textContent = "❌ " + (result?.error || "Erreur inconnue");
-          testScalewayResult.style.color = "#DC2626";
-        }
-      } catch (err) {
-        testScalewayResult.textContent = "❌ " + err.message;
-        testScalewayResult.style.color = "#DC2626";
-      }
-
-      testScalewayBtn.disabled = false;
-      testScalewayBtn.textContent = oldLabel;
-    });
-  }
-
-  // -------------------------------------------------------------------------
-  // 7. Sauvegarder les paramètres
-  // -------------------------------------------------------------------------
-  saveBtn.addEventListener("click", () => {
-    const settings = {
-      provider: providerSelect.value,
-      // Scaleway
-      scalewayApiKey: scalewayApiKeyInput.value.trim(),
-      scalewayProjectId: scalewayProjectIdInput.value.trim(),
-      scalewayModel: scalewayModelSelect.value,
-      // Local
-      localServerUrl: localServerUrlInput.value.trim() || "http://localhost:11434/v1",
-      localModel: localModelInput.value.trim() || "llama3",
-      localRequireKey: localRequireKeyCheckbox.checked,
-      localApiKey: localApiKeyInput.value.trim(),
-      // OpenAI Direct
-      apiKey: openaiApiKeyInput.value.trim(),
-      // Commun
-      model: modelSelect.value,
-      temperature: parseFloat(temperatureSlider.value),
-      doctorContext: doctorContextTextarea.value.trim(),
-      anonymizeEnabled: anonymizeCheckbox.checked
-    };
-
-    chrome.storage.sync.set(settings, () => {
-      saveBtn.textContent = "✅ Sauvegardé !";
-      saveBtn.classList.add("success");
-      showToast();
-
-      setTimeout(() => {
-        saveBtn.innerHTML = "💾 Sauvegarder les paramètres";
-        saveBtn.classList.remove("success");
-      }, 2000);
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // 8. Toast
-  // -------------------------------------------------------------------------
-  function showToast() {
-    toast.classList.add("show");
-    setTimeout(() => {
-      toast.classList.remove("show");
-    }, 2500);
-  }
-
-  // -------------------------------------------------------------------------
-  // 9. Ctrl+S / Cmd+S
-  // -------------------------------------------------------------------------
-  document.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-      e.preventDefault();
-      saveBtn.click();
-    }
-  });
-
-  // =========================================================================
-  // 10. Gestion des actions du menu contextuel (CRUD)
-  // =========================================================================
-
-  // Items par défaut — MIROIR EXACT de background.js MENU_ITEMS.
-  // À garder synchronisé manuellement (prompts + exemples few-shot).
-  const DEFAULT_MENU_ITEMS = [
-    {
-      id: "corriger_reformuler",
-      title: "✏️ Corriger & Reformuler",
-      prompt: `Tu es un correcteur orthographique strict. Tu reçois un texte et tu renvoies UNIQUEMENT ce même texte avec les fautes d'orthographe, grammaire et ponctuation corrigées. Tu ne fais rien d'autre. Tu ne définis pas, tu n'expliques pas, tu n'ajoutes aucune information. Ta sortie a la même longueur que l'entrée.`,
-      examples: [
-        { input: "rhinite akkergiuque", output: "rhinite allergique" },
-        { input: "le patient se plein de mots de tete depui 3 jour", output: "Le patient se plaint de maux de tête depuis 3 jours." },
-        { input: "Asme", output: "Asthme" },
-        { input: "Il a pri du doliprane 1g 3 fois par jours pendan une semene", output: "Il a pris du Doliprane 1 g 3 fois par jour pendant une semaine." }
-      ]
-    },
-    {
-      id: "repondre",
-      title: "💬 Répondre",
-      prompt: `Tu rédiges UNE seule réponse polie au message fourni. Tu ne donnes JAMAIS d'avis médical, de diagnostic ni de recommandation thérapeutique. Tu ne fabriques aucune information absente du message d'origine. Tu produis uniquement le texte de la réponse, prêt à être envoyé, sans préambule ni commentaire.`,
-      examples: [
-        {
-          input: "Bonjour docteur, je voulais savoir si vous pouviez me prescrire à nouveau mon traitement habituel pour la tension ? Merci.",
-          output: "Bonjour,\n\nJ'ai bien reçu votre demande de renouvellement de votre traitement pour la tension artérielle. Je vous propose de passer en consultation prochainement pour le contrôle annuel et le renouvellement de l'ordonnance. N'hésitez pas à contacter le secrétariat pour fixer un rendez-vous.\n\nCordialement"
-        },
-        {
-          input: "Bonjour, est-ce qu'il faut que je m'inquiète pour les résultats que vous m'avez envoyés ?",
-          output: "Bonjour,\n\nJe vous remercie pour votre message. Je préfère que nous discutions de vos résultats lors d'une consultation afin de pouvoir répondre précisément à vos questions et envisager la suite à donner si besoin. Merci de contacter le secrétariat pour convenir d'un rendez-vous.\n\nCordialement"
-        },
-        {
-          input: "Merci docteur pour la consultation d'hier.",
-          output: "Bonjour,\n\nJe vous remercie pour votre message. N'hésitez pas à me recontacter si vous en éprouvez le besoin.\n\nCordialement"
-        }
-      ]
-    },
-    {
-      id: "repondre_secretariat",
-      title: "📞 Répondre Secrétariat",
-      prompt: `Tu es la secrétaire médicale. Tu rédiges UNE réponse polie au message patient, en vouvoyant toujours. Tu signes "Le secrétariat du Dr [NOM DU MÉDECIN]". Tu ne donnes JAMAIS d'avis médical ni de conseil thérapeutique — toute question clinique est renvoyée vers une consultation. Pour toute mention d'urgence, tu rediriges vers le 15 (SAMU) ou le 112. Tu n'inventes aucun horaire, tarif ou disponibilité. Tu produis uniquement le texte de la réponse, sans préambule.`,
-      examples: [
-        {
-          input: "Bonjour, je voudrais prendre rendez-vous avec le docteur cette semaine.",
-          output: "Bonjour,\n\nJe vous remercie pour votre message. Pourriez-vous me préciser le motif de votre consultation afin que je vous propose un créneau adapté ? Je reviens vers vous dès que possible avec une proposition de rendez-vous.\n\nCordialement,\nLe secrétariat du Dr [NOM DU MÉDECIN]"
-        },
-        {
-          input: "Bonjour, je voudrais le renouvellement de mon ordonnance habituelle.",
-          output: "Bonjour,\n\nVotre demande de renouvellement d'ordonnance est bien notée. Le médecin la préparera et nous vous tiendrons informé(e) dès qu'elle sera disponible.\n\nCordialement,\nLe secrétariat du Dr [NOM DU MÉDECIN]"
-        },
-        {
-          input: "Bonjour, j'ai une grosse douleur à la poitrine depuis ce matin, qu'est-ce que je dois faire ?",
-          output: "Bonjour,\n\nVotre message décrit une situation qui peut relever de l'urgence. Nous vous invitons à appeler **immédiatement le 15 (SAMU)** ou le 112. Ne restez pas sans avis médical en cas de symptôme aigu.\n\nCordialement,\nLe secrétariat du Dr [NOM DU MÉDECIN]"
-        },
-        {
-          input: "Est-ce que mes résultats de prise de sang sont arrivés ?",
-          output: "Bonjour,\n\nNous vérifions auprès du laboratoire et du médecin. Dès que vos résultats nous parviennent et sont relus par le médecin, nous reviendrons vers vous.\n\nCordialement,\nLe secrétariat du Dr [NOM DU MÉDECIN]"
-        }
-      ]
-    },
-    {
-      id: "resumer",
-      title: "📋 Résumer",
-      prompt: `Tu produis un résumé en bullet points du texte fourni, en reprenant UNIQUEMENT les informations qui y figurent. Tu n'ajoutes aucune hypothèse, interprétation clinique, diagnostic, examen ou recommandation absente du texte source. Tu ne formules aucune conclusion clinique propre. Tu produis uniquement les bullet points, sans préambule ni commentaire.`,
-      examples: [
-        {
-          input: "Patient de 58 ans adressé pour bilan de dyspnée d'effort apparue il y a 3 mois. Antécédents : HTA traitée par amlodipine. Tabagisme actif 30 paquets-années. ECG normal. Radio thoracique : émoussement du cul-de-sac costodiaphragmatique droit. Spirométrie : trouble ventilatoire obstructif modéré.",
-          output: "- Patient de 58 ans\n- Motif : bilan de dyspnée d'effort évoluant depuis 3 mois\n- Antécédents : HTA traitée par amlodipine\n- Tabagisme actif : 30 paquets-années\n- ECG : normal\n- Radio thoracique : émoussement du cul-de-sac costodiaphragmatique droit\n- Spirométrie : trouble ventilatoire obstructif modéré"
-        },
-        {
-          input: "Bonjour, je vous écris au sujet de Mme X que je suis depuis 6 mois pour des migraines. Elle a essayé le paracétamol puis l'ibuprofène sans succès. Les crises sont fréquentes (3 à 4 par semaine). Je souhaiterais votre avis neurologique.",
-          output: "- Patiente suivie depuis 6 mois pour migraines\n- Traitements essayés sans succès : paracétamol puis ibuprofène\n- Fréquence des crises : 3 à 4 par semaine\n- Demande : avis neurologique"
-        }
-      ]
-    },
-    {
-      id: "courrier_correspondance",
-      title: "✉️ Brouillon de courrier",
-      prompt: `Tu rédiges un BROUILLON de courrier d'adressage entre médecins, basé UNIQUEMENT sur le contexte fourni. Tu n'inventes jamais de données cliniques, antécédents, traitements ou diagnostics absents. Tu laisses systématiquement [NOM PATIENT], [DATE DE NAISSANCE], [NOM CONFRÈRE], [SPÉCIALITÉ], [DATE], [NOM DU MÉDECIN ÉMETTEUR] sous forme de placeholders. Tu n'ajoutes aucune recommandation thérapeutique propre. Tu termines TOUJOURS par la ligne exacte : [BROUILLON GÉNÉRÉ PAR IA — À RELIRE, CORRIGER ET VALIDER PAR LE MÉDECIN AVANT ENVOI]`,
-      examples: [
-        {
-          input: "Adresser à un cardiologue Mme Y, 62 ans, pour bilan de palpitations apparues il y a 1 mois, en contexte d'HTA traitée par ramipril.",
-          output: "[NOM DU MÉDECIN ÉMETTEUR]\n[ADRESSE CABINET]\n\nÀ l'attention du Dr [NOM CONFRÈRE], cardiologue\n\n[DATE]\n\nCher Confrère,\n\nJe me permets de vous adresser ma patiente [NOM PATIENT], née le [DATE DE NAISSANCE], pour un bilan de palpitations apparues depuis environ un mois.\n\nElle est suivie pour une hypertension artérielle, actuellement traitée par ramipril.\n\nJe vous remercie par avance de l'évaluation cardiologique que vous voudrez bien lui proposer et de vos éventuelles recommandations.\n\nVous remerciant de votre prise en charge,\nConfraternellement,\n\n[NOM DU MÉDECIN ÉMETTEUR]\n\n[BROUILLON GÉNÉRÉ PAR IA — À RELIRE, CORRIGER ET VALIDER PAR LE MÉDECIN AVANT ENVOI]"
-        },
-        {
-          input: "Demander un avis dermato pour un patient avec lésion cutanée du dos évoluant depuis 6 mois.",
-          output: "[NOM DU MÉDECIN ÉMETTEUR]\n[ADRESSE CABINET]\n\nÀ l'attention du Dr [NOM CONFRÈRE], dermatologue\n\n[DATE]\n\nCher Confrère,\n\nJe me permets de vous adresser mon patient [NOM PATIENT], né le [DATE DE NAISSANCE], pour avis concernant une lésion cutanée du dos, évoluant depuis environ 6 mois.\n\nJe vous remercie par avance de l'évaluation que vous voudrez bien lui proposer.\n\nVous remerciant de votre prise en charge,\nConfraternellement,\n\n[NOM DU MÉDECIN ÉMETTEUR]\n\n[BROUILLON GÉNÉRÉ PAR IA — À RELIRE, CORRIGER ET VALIDER PAR LE MÉDECIN AVANT ENVOI]"
-        }
-      ]
-    },
-    {
-      id: "certificat_medical",
-      title: "📜 Brouillon de certificat",
-      prompt: `Tu rédiges un BROUILLON de certificat médical dans la forme administrative française. Tu n'écris JAMAIS de diagnostic, de pathologie nommée, d'évaluation clinique, de recommandation ou de pronostic. Tu n'utilises que des constatations objectives. Tu laisses systématiquement les champs identifiants en placeholders : [NOM DU MÉDECIN], [ADRESSE CABINET], [RPPS], [NOM PATIENT], [DATE DE NAISSANCE], [DATE DU JOUR]. Tu inclus toujours la mention "Certificat établi à la demande de l'intéressé(e) et remis en main propre pour faire valoir ce que de droit." Tu termines TOUJOURS par la ligne exacte : [BROUILLON GÉNÉRÉ PAR IA — NON VALIDÉ — LE MÉDECIN EST SEUL RESPONSABLE DE LA RÉDACTION FINALE, DE SA CONFORMITÉ LÉGALE ET DE SA SIGNATURE]`,
-      examples: [
-        {
-          input: "Certificat de consultation simple.",
-          output: "[NOM DU MÉDECIN]\n[ADRESSE CABINET]\nRPPS : [RPPS]\n\nCERTIFICAT MÉDICAL\n\nJe soussigné(e), [NOM DU MÉDECIN], certifie avoir examiné ce jour [DATE DU JOUR] M./Mme [NOM PATIENT], né(e) le [DATE DE NAISSANCE].\n\nCertificat établi à la demande de l'intéressé(e) et remis en main propre pour faire valoir ce que de droit.\n\nFait à [VILLE], le [DATE DU JOUR].\n\n[NOM DU MÉDECIN]\n(signature et cachet)\n\n[BROUILLON GÉNÉRÉ PAR IA — NON VALIDÉ — LE MÉDECIN EST SEUL RESPONSABLE DE LA RÉDACTION FINALE, DE SA CONFORMITÉ LÉGALE ET DE SA SIGNATURE]"
-        },
-        {
-          input: "Certificat d'aptitude pour pratique sportive en club, après examen ce jour.",
-          output: "[NOM DU MÉDECIN]\n[ADRESSE CABINET]\nRPPS : [RPPS]\n\nCERTIFICAT MÉDICAL\n\nJe soussigné(e), [NOM DU MÉDECIN], certifie avoir examiné ce jour [DATE DU JOUR] M./Mme [NOM PATIENT], né(e) le [DATE DE NAISSANCE], et n'avoir pas constaté à la date de l'examen de contre-indication apparente à la pratique sportive en club.\n\nCertificat établi à la demande de l'intéressé(e) et remis en main propre pour faire valoir ce que de droit.\n\nFait à [VILLE], le [DATE DU JOUR].\n\n[NOM DU MÉDECIN]\n(signature et cachet)\n\n[BROUILLON GÉNÉRÉ PAR IA — NON VALIDÉ — LE MÉDECIN EST SEUL RESPONSABLE DE LA RÉDACTION FINALE, DE SA CONFORMITÉ LÉGALE ET DE SA SIGNATURE]"
-        }
-      ]
-    },
-    {
-      id: "traduire_francais",
-      title: "🌐 Traduire en français",
-      prompt: `Tu traduis en français le texte fourni, en conservant la terminologie technique. Tu n'expliques pas, tu ne paraphrases pas, tu n'ajoutes rien. Ta sortie a une longueur équivalente au texte source. Tu produis uniquement la traduction, sans préambule.`,
-      examples: [
-        { input: "The patient presents with acute chest pain.", output: "Le patient se présente avec une douleur thoracique aiguë." },
-        { input: "MRI shows a small lacunar infarct in the left thalamus.", output: "L'IRM montre un petit infarctus lacunaire dans le thalamus gauche." },
-        { input: "Hypertension", output: "Hypertension artérielle" }
-      ]
-    }
-  ];
-
-  const menuList = document.getElementById("menu-items-list");
-  const addActionBtn = document.getElementById("add-action-btn");
-  const addActionForm = document.getElementById("add-action-form");
-  const cancelAddBtn = document.getElementById("cancel-add-btn");
-  const confirmAddBtn = document.getElementById("confirm-add-btn");
-  const newTitleInput = document.getElementById("new-action-title");
-  const newPromptInput = document.getElementById("new-action-prompt");
-
-  let menuOverrides = {};
-  let customMenuItems = [];
-
-  // Charger et afficher
-  function loadMenuItems() {
-    chrome.storage.sync.get({ menuOverrides: {}, customMenuItems: [] }, (items) => {
-      menuOverrides = items.menuOverrides || {};
-      customMenuItems = items.customMenuItems || [];
-      renderMenuItems();
-    });
-  }
-
-  // Sauvegarder dans storage et reconstruire le menu
-  function saveMenuState(callback) {
-    chrome.storage.sync.set({ menuOverrides, customMenuItems }, () => {
-      chrome.runtime.sendMessage({ action: "rebuildMenus" });
-      if (callback) callback();
-    });
-  }
-
-  // Rendu de la liste
-  function renderMenuItems() {
-    menuList.innerHTML = "";
-
-    // Defaults
-    for (const item of DEFAULT_MENU_ITEMS) {
-      const ov = menuOverrides[item.id] || {};
-      const enabled = ov.enabled !== false;
-      const title = ov.title || item.title;
-      const prompt = ov.prompt || item.prompt;
-      const examples = Array.isArray(ov.examples) ? ov.examples : (item.examples || []);
-      menuList.appendChild(buildRow({ id: item.id, title, prompt, examples, enabled, isDefault: true }));
-    }
-
-    // Custom
-    for (const item of customMenuItems) {
-      menuList.appendChild(buildRow({ ...item, examples: item.examples || [], isDefault: false }));
-    }
-  }
-
-  // Construire une ligne item
-  function buildRow({ id, title, prompt, examples, enabled, isDefault }) {
-    const wrapper = document.createElement("div");
-
-    const row = document.createElement("div");
-    row.className = "menu-item-row";
-
-    // Toggle
-    const toggleLabel = document.createElement("label");
-    toggleLabel.className = "menu-item-toggle";
-    const toggleInput = document.createElement("input");
-    toggleInput.type = "checkbox";
-    toggleInput.checked = enabled !== false;
-    const toggleSlider = document.createElement("span");
-    toggleSlider.className = "toggle-slider";
-    toggleLabel.appendChild(toggleInput);
-    toggleLabel.appendChild(toggleSlider);
-
-    // Label
-    const labelEl = document.createElement("span");
-    labelEl.className = "menu-item-label" + (enabled === false ? " disabled" : "");
-    labelEl.textContent = title;
-
-    // Badge
-    const badge = document.createElement("span");
-    badge.className = "menu-item-badge " + (isDefault ? "badge-default" : "badge-custom");
-    badge.textContent = isDefault ? "Défaut" : "Perso";
-
-    // Boutons
-    const actionsEl = document.createElement("div");
-    actionsEl.className = "menu-item-actions";
-
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.className = "icon-btn";
-    editBtn.title = "Modifier";
-    editBtn.textContent = "✏️";
-
-    actionsEl.appendChild(editBtn);
-
-    if (!isDefault) {
-      const delBtn = document.createElement("button");
-      delBtn.type = "button";
-      delBtn.className = "icon-btn danger";
-      delBtn.title = "Supprimer";
-      delBtn.textContent = "🗑️";
-      delBtn.addEventListener("click", () => {
-        if (!confirm(`Supprimer "${title}" ?`)) return;
-        customMenuItems = customMenuItems.filter(m => m.id !== id);
-        saveMenuState(() => renderMenuItems());
-      });
-      actionsEl.appendChild(delBtn);
-    }
-
-    // Reset prompt (défaut seulement, si override)
-    if (isDefault && menuOverrides[id]?.prompt) {
-      const resetBtn = document.createElement("button");
-      resetBtn.type = "button";
-      resetBtn.className = "icon-btn";
-      resetBtn.title = "Restaurer le prompt par défaut";
-      resetBtn.textContent = "↩️";
-      resetBtn.addEventListener("click", () => {
-        if (!confirm("Restaurer le prompt original ?")) return;
-        const ov = menuOverrides[id] || {};
-        delete ov.prompt;
-        delete ov.title;
-        if (Object.keys(ov).length === 0) delete menuOverrides[id];
-        else menuOverrides[id] = ov;
-        saveMenuState(() => renderMenuItems());
-      });
-      actionsEl.appendChild(resetBtn);
-    }
-
-    row.appendChild(toggleLabel);
-    row.appendChild(labelEl);
-    row.appendChild(badge);
-    row.appendChild(actionsEl);
-
-    // Toggle handler
-    toggleInput.addEventListener("change", () => {
-      const isEnabled = toggleInput.checked;
-      labelEl.classList.toggle("disabled", !isEnabled);
-      if (isDefault) {
-        menuOverrides[id] = { ...(menuOverrides[id] || {}), enabled: isEnabled };
-      } else {
-        const idx = customMenuItems.findIndex(m => m.id === id);
-        if (idx >= 0) customMenuItems[idx].enabled = isEnabled;
-      }
-      saveMenuState();
-    });
-
-    // Panneau d'édition
-    const editPanel = document.createElement("div");
-    editPanel.className = "edit-panel";
-
-    const inner = document.createElement("div");
-    inner.className = "edit-panel-inner";
-
-    // Titre (toujours modifiable)
-    const titleLabel = document.createElement("label");
-    titleLabel.textContent = "Titre de l'action";
-    const titleInput = document.createElement("input");
-    titleInput.type = "text";
-    titleInput.value = title;
-    titleInput.placeholder = "Ex: ✏️ Mon action";
-
-    // ─── Layout 2 colonnes : prompt à gauche, exemples à droite ──────
-    const twoCol = document.createElement("div");
-    twoCol.className = "edit-two-col";
-
-    const leftCol = document.createElement("div");
-    leftCol.className = "edit-col";
-
-    const rightCol = document.createElement("div");
-    rightCol.className = "edit-col";
-
-    // ── Colonne gauche : prompt système ──
-    const promptLabel = document.createElement("label");
-    promptLabel.textContent = "Prompt système";
-    const promptHelp = document.createElement("p");
-    promptHelp.className = "api-help";
-    promptHelp.textContent = "Instruction de rôle envoyée à l'IA. Sois précis et liste les interdictions.";
-    const promptTextarea = document.createElement("textarea");
-    promptTextarea.value = prompt;
-    promptTextarea.rows = 14;
-    promptTextarea.placeholder = "Tu es un assistant qui ...";
-
-    leftCol.appendChild(promptLabel);
-    leftCol.appendChild(promptHelp);
-    leftCol.appendChild(promptTextarea);
-
-    // ── Colonne droite : exemples (few-shot) ──
-    const examplesHeader = document.createElement("label");
-    examplesHeader.textContent = "Exemples (few-shot)";
-
-    const examplesHelp = document.createElement("p");
-    examplesHelp.className = "api-help";
-    examplesHelp.innerHTML = "Montrez à l'IA 2 à 4 paires <strong>entrée → sortie attendue</strong>. Cela force le modèle à imiter EXACTEMENT votre format de sortie. Très efficace avec Mistral / GPT-OSS.";
-
-    const examplesList = document.createElement("div");
-    examplesList.className = "examples-list";
-
-    // État local des exemples
-    const localExamples = Array.isArray(examples) ? examples.map(e => ({ input: e.input || "", output: e.output || "" })) : [];
-
-    function renderExamples() {
-      examplesList.innerHTML = "";
-      if (localExamples.length === 0) {
-        const empty = document.createElement("p");
-        empty.className = "api-help";
-        empty.style.fontStyle = "italic";
-        empty.textContent = "Aucun exemple pour le moment.";
-        examplesList.appendChild(empty);
-      }
-      localExamples.forEach((ex, idx) => {
-        const card = document.createElement("div");
-        card.className = "example-card";
-
-        const cardHeader = document.createElement("div");
-        cardHeader.className = "example-card-header";
-        const num = document.createElement("strong");
-        num.textContent = `Exemple ${idx + 1}`;
-        const removeBtn = document.createElement("button");
-        removeBtn.type = "button";
-        removeBtn.className = "icon-btn danger";
-        removeBtn.title = "Supprimer cet exemple";
-        removeBtn.textContent = "🗑️";
-        removeBtn.addEventListener("click", () => {
-          localExamples.splice(idx, 1);
-          renderExamples();
-        });
-        cardHeader.appendChild(num);
-        cardHeader.appendChild(removeBtn);
-
-        const inputLabel = document.createElement("label");
-        inputLabel.textContent = "Entrée";
-        const inputArea = document.createElement("textarea");
-        inputArea.value = ex.input;
-        inputArea.rows = 2;
-        inputArea.placeholder = "Texte d'exemple en entrée";
-        inputArea.addEventListener("input", () => { localExamples[idx].input = inputArea.value; });
-
-        const outputLabel = document.createElement("label");
-        outputLabel.textContent = "Sortie attendue";
-        const outputArea = document.createElement("textarea");
-        outputArea.value = ex.output;
-        outputArea.rows = 3;
-        outputArea.placeholder = "Sortie idéale attendue pour cette entrée";
-        outputArea.addEventListener("input", () => { localExamples[idx].output = outputArea.value; });
-
-        card.appendChild(cardHeader);
-        card.appendChild(inputLabel);
-        card.appendChild(inputArea);
-        card.appendChild(outputLabel);
-        card.appendChild(outputArea);
-        examplesList.appendChild(card);
-      });
-    }
-    renderExamples();
-
-    const addExampleBtn = document.createElement("button");
-    addExampleBtn.type = "button";
-    addExampleBtn.className = "btn-sm btn-sm-ghost";
-    addExampleBtn.style.marginTop = "8px";
-    addExampleBtn.textContent = "➕ Ajouter un exemple";
-    addExampleBtn.addEventListener("click", () => {
-      localExamples.push({ input: "", output: "" });
-      renderExamples();
-    });
-
-    const panelActions = document.createElement("div");
-    panelActions.className = "edit-panel-actions";
-
-    const cancelBtn2 = document.createElement("button");
-    cancelBtn2.type = "button";
-    cancelBtn2.className = "btn-sm btn-sm-ghost";
-    cancelBtn2.textContent = "Annuler";
-    cancelBtn2.addEventListener("click", () => {
-      editPanel.classList.remove("open");
-      editBtn.textContent = "✏️";
-    });
-
-    const saveBtn2 = document.createElement("button");
-    saveBtn2.type = "button";
-    saveBtn2.className = "btn-sm btn-sm-primary";
-    saveBtn2.textContent = "💾 Sauvegarder";
-    saveBtn2.addEventListener("click", () => {
-      const newTitle = titleInput.value.trim();
-      const newPrompt = promptTextarea.value.trim();
-      if (!newTitle || !newPrompt) { alert("Le titre et le prompt sont obligatoires."); return; }
-
-      // Filtrer les exemples : ne garder que ceux qui ont entrée ET sortie
-      const cleanedExamples = localExamples
-        .map(e => ({ input: (e.input || "").trim(), output: (e.output || "").trim() }))
-        .filter(e => e.input && e.output);
-
-      if (isDefault) {
-        menuOverrides[id] = {
-          ...(menuOverrides[id] || {}),
-          title: newTitle,
-          prompt: newPrompt,
-          examples: cleanedExamples
-        };
-      } else {
-        const idx = customMenuItems.findIndex(m => m.id === id);
-        if (idx >= 0) {
-          customMenuItems[idx].title = newTitle;
-          customMenuItems[idx].prompt = newPrompt;
-          customMenuItems[idx].examples = cleanedExamples;
-        }
-      }
-      saveMenuState(() => {
-        editPanel.classList.remove("open");
-        editBtn.textContent = "✏️";
+        await removeMenuItem(id);
+        menuConfig.custom = menuConfig.custom.filter(c => c.id !== id);
+        chrome.runtime.sendMessage({ action: "rebuildMenus" }).catch(() => {});
         renderMenuItems();
-        showToast();
-      });
-    });
-
-    panelActions.appendChild(cancelBtn2);
-    panelActions.appendChild(saveBtn2);
-
-    // Assemblage des colonnes
-    rightCol.appendChild(examplesHeader);
-    rightCol.appendChild(examplesHelp);
-    rightCol.appendChild(examplesList);
-    rightCol.appendChild(addExampleBtn);
-
-    twoCol.appendChild(leftCol);
-    twoCol.appendChild(rightCol);
-
-    inner.appendChild(titleLabel);
-    inner.appendChild(titleInput);
-    inner.appendChild(twoCol);
-    inner.appendChild(panelActions);
-    editPanel.appendChild(inner);
-
-    // Toggle édition
-    editBtn.addEventListener("click", () => {
-      const isOpen = editPanel.classList.contains("open");
-      // Fermer tous les autres panneaux
-      document.querySelectorAll(".edit-panel.open").forEach(p => p.classList.remove("open"));
-      document.querySelectorAll(".icon-btn").forEach(b => { if (b.textContent === "✖️") b.textContent = "✏️"; });
-      if (!isOpen) {
-        editPanel.classList.add("open");
-        editBtn.textContent = "✖️";
+      } catch (err) {
+        showToast(storageErrorMessage(err), true);
       }
     });
-
-    wrapper.appendChild(row);
-    wrapper.appendChild(editPanel);
-    return wrapper;
+    actionsEl.appendChild(delBtn);
   }
 
-  // Ajouter une nouvelle action
-  addActionBtn.addEventListener("click", () => {
-    addActionForm.classList.toggle("open");
-    addActionBtn.textContent = addActionForm.classList.contains("open") ? "✖️ Annuler" : "➕ Ajouter une action personnalisée";
-  });
-
-  cancelAddBtn.addEventListener("click", () => {
-    addActionForm.classList.remove("open");
-    addActionBtn.textContent = "➕ Ajouter une action personnalisée";
-    newTitleInput.value = "";
-    newPromptInput.value = "";
-  });
-
-  confirmAddBtn.addEventListener("click", () => {
-    const title = newTitleInput.value.trim();
-    const prompt = newPromptInput.value.trim();
-    if (!title || !prompt) { alert("Le titre et le prompt sont obligatoires."); return; }
-
-    const newItem = {
-      id: "custom_" + Date.now(),
-      title,
-      prompt,
-      enabled: true
-    };
-    customMenuItems.push(newItem);
-    saveMenuState(() => {
-      renderMenuItems();
-      cancelAddBtn.click();
-      showToast();
+  if (isDefault && override && (override.prompt || override.title || override.examples)) {
+    const resetBtn = iconButton("↩️", "Restaurer le prompt et les exemples par défaut");
+    resetBtn.addEventListener("click", async () => {
+      if (!confirm("Restaurer le prompt, le titre et les exemples d'origine ?")) return;
+      const data = {};
+      if (override.enabled === false) data.enabled = false;
+      await persistItem(item, data, renderMenuItems);
     });
+    actionsEl.appendChild(resetBtn);
+  }
+
+  row.appendChild(toggleLabel);
+  row.appendChild(labelEl);
+  row.appendChild(badge);
+  row.appendChild(actionsEl);
+
+  toggleInput.addEventListener("change", async () => {
+    const isEnabled = toggleInput.checked;
+    labelEl.classList.toggle("disabled", !isEnabled);
+    const data = isDefault
+      ? { ...(override || {}), enabled: isEnabled }
+      : { title, prompt, examples, enabled: isEnabled };
+    if (isDefault && isEnabled) delete data.enabled;   // valeur par défaut → on n'écrit pas la clé
+    const ok = await persistItem(item, data, () => renderQuickActionOptions(currentItems()));
+    if (!ok) toggleInput.checked = !isEnabled;
   });
 
-  // Initialisation
-  loadMenuItems();
+  // ── Panneau d'édition ──
+  const editPanel = el("div", "edit-panel");
+  const inner = el("div", "edit-panel-inner");
 
+  const titleLabel = el("label", null, "Titre de l'action");
+  const titleInput = document.createElement("input");
+  titleInput.type = "text";
+  titleInput.value = title;
+  titleInput.placeholder = "Ex: ✏️ Mon action";
+
+  const twoCol = el("div", "edit-two-col");
+  const leftCol = el("div", "edit-col");
+  const rightCol = el("div", "edit-col");
+
+  leftCol.appendChild(el("label", null, "Prompt système"));
+  leftCol.appendChild(el("p", "api-help", "Instruction de rôle envoyée à l'IA. Sois précis et liste les interdictions."));
+  const promptTextarea = document.createElement("textarea");
+  promptTextarea.value = prompt;
+  promptTextarea.rows = 14;
+  promptTextarea.placeholder = "Tu es un assistant qui ...";
+  leftCol.appendChild(promptTextarea);
+
+  rightCol.appendChild(el("label", null, "Exemples (few-shot)"));
+  const examplesHelp = el("p", "api-help");
+  examplesHelp.innerHTML = "Montrez à l'IA 2 à 4 paires <strong>entrée → sortie attendue</strong>. Cela force le modèle à imiter EXACTEMENT votre format de sortie. Très efficace avec Mistral / GPT-OSS.";
+  rightCol.appendChild(examplesHelp);
+
+  const examplesList = el("div", "examples-list");
+  const localExamples = (examples || []).map(e => ({ input: e.input || "", output: e.output || "" }));
+
+  function renderExamples() {
+    examplesList.innerHTML = "";
+    if (localExamples.length === 0) {
+      const empty = el("p", "api-help", "Aucun exemple pour le moment.");
+      empty.style.fontStyle = "italic";
+      examplesList.appendChild(empty);
+    }
+    localExamples.forEach((ex, idx) => {
+      const card = el("div", "example-card");
+      const cardHeader = el("div", "example-card-header");
+      cardHeader.appendChild(el("strong", null, `Exemple ${idx + 1}`));
+      const removeBtn = iconButton("🗑️", "Supprimer cet exemple", "danger");
+      removeBtn.addEventListener("click", () => { localExamples.splice(idx, 1); renderExamples(); });
+      cardHeader.appendChild(removeBtn);
+
+      const inputArea = document.createElement("textarea");
+      inputArea.value = ex.input;
+      inputArea.rows = 2;
+      inputArea.placeholder = "Texte d'exemple en entrée";
+      inputArea.addEventListener("input", () => { localExamples[idx].input = inputArea.value; });
+
+      const outputArea = document.createElement("textarea");
+      outputArea.value = ex.output;
+      outputArea.rows = 3;
+      outputArea.placeholder = "Sortie idéale attendue pour cette entrée";
+      outputArea.addEventListener("input", () => { localExamples[idx].output = outputArea.value; });
+
+      card.appendChild(cardHeader);
+      card.appendChild(el("label", null, "Entrée"));
+      card.appendChild(inputArea);
+      card.appendChild(el("label", null, "Sortie attendue"));
+      card.appendChild(outputArea);
+      examplesList.appendChild(card);
+    });
+  }
+  renderExamples();
+
+  const addExampleBtn = el("button", "btn-sm btn-sm-ghost", "➕ Ajouter un exemple");
+  addExampleBtn.type = "button";
+  addExampleBtn.style.marginTop = "8px";
+  addExampleBtn.addEventListener("click", () => { localExamples.push({ input: "", output: "" }); renderExamples(); });
+
+  rightCol.appendChild(examplesList);
+  rightCol.appendChild(addExampleBtn);
+  twoCol.appendChild(leftCol);
+  twoCol.appendChild(rightCol);
+
+  const closePanel = () => { editPanel.classList.remove("open"); editBtn.textContent = "✏️"; };
+
+  const panelActions = el("div", "edit-panel-actions");
+  const cancelBtn2 = el("button", "btn-sm btn-sm-ghost", "Annuler");
+  cancelBtn2.type = "button";
+  cancelBtn2.addEventListener("click", closePanel);
+
+  const saveBtn2 = el("button", "btn-sm btn-sm-primary", "Sauvegarder");
+  saveBtn2.type = "button";
+  saveBtn2.addEventListener("click", async () => {
+    const newTitle = titleInput.value.trim();
+    const newPrompt = promptTextarea.value.trim();
+    if (!newTitle || !newPrompt) { alert("Le titre et le prompt sont obligatoires."); return; }
+    const cleanedExamples = localExamples
+      .map(e => ({ input: (e.input || "").trim(), output: (e.output || "").trim() }))
+      .filter(e => e.input && e.output);
+
+    const data = isDefault
+      ? { ...(override || {}), title: newTitle, prompt: newPrompt, examples: cleanedExamples }
+      : { title: newTitle, prompt: newPrompt, examples: cleanedExamples, enabled };
+    await persistItem(item, data, () => { closePanel(); renderMenuItems(); showToast("Action enregistrée"); });
+  });
+
+  panelActions.appendChild(cancelBtn2);
+  panelActions.appendChild(saveBtn2);
+
+  inner.appendChild(titleLabel);
+  inner.appendChild(titleInput);
+  inner.appendChild(twoCol);
+  inner.appendChild(panelActions);
+  editPanel.appendChild(inner);
+
+  editBtn.addEventListener("click", () => {
+    const isOpen = editPanel.classList.contains("open");
+    document.querySelectorAll(".edit-panel.open").forEach(p => p.classList.remove("open"));
+    document.querySelectorAll(".icon-btn").forEach(b => { if (b.textContent === "✖️") b.textContent = "✏️"; });
+    if (!isOpen) { editPanel.classList.add("open"); editBtn.textContent = "✖️"; }
+  });
+
+  wrapper.appendChild(row);
+  wrapper.appendChild(editPanel);
+  return wrapper;
+}
+
+addActionBtn.addEventListener("click", () => {
+  addActionForm.classList.toggle("open");
+  addActionBtn.textContent = addActionForm.classList.contains("open") ? "✖️ Annuler" : "➕ Ajouter une action personnalisée";
+});
+
+cancelAddBtn.addEventListener("click", () => {
+  addActionForm.classList.remove("open");
+  addActionBtn.textContent = "➕ Ajouter une action personnalisée";
+  newTitleInput.value = "";
+  newPromptInput.value = "";
+});
+
+confirmAddBtn.addEventListener("click", async () => {
+  const title = newTitleInput.value.trim();
+  const prompt = newPromptInput.value.trim();
+  if (!title || !prompt) { alert("Le titre et le prompt sont obligatoires."); return; }
+  const item = { id: "custom_" + Date.now(), isDefault: false };
+  await persistItem(item, { title, prompt, examples: [], enabled: true }, () => {
+    renderMenuItems();
+    cancelAddBtn.click();
+    showToast("Action ajoutée");
+  });
+});
+
+// ===========================================================================
+// 9. Export / import des réglages (sans secret)
+// ===========================================================================
+const backupResult = $("backup-result");
+
+$("export-btn").addEventListener("click", async () => {
+  const settings = await loadSettings();
+  const payload = {
+    dachi: chrome.runtime.getManifest().version,
+    exportedAt: new Date().toISOString(),
+    settings: exportableSettings(settings),
+    menu: { overrides: menuConfig.overrides, custom: menuConfig.custom }
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `dachi-reglages-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  backupResult.textContent = "✅ Export téléchargé (sans clés API)";
+  backupResult.className = "test-result success";
+});
+
+$("import-btn").addEventListener("click", () => $("import-file").click());
+
+$("import-file").addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  backupResult.className = "test-result";
+  backupResult.textContent = "";
+
+  try {
+    const payload = JSON.parse(await file.text());
+    if (!payload || typeof payload !== "object" || !payload.settings) throw new Error("fichier non reconnu");
+
+    // Préférences : uniquement les clés connues, du bon type, jamais les secrets
+    const PROVIDERS = ["scaleway", "local", "openai", "openrouter"];
+    const incoming = {};
+    for (const [k, v] of Object.entries(payload.settings)) {
+      if (!(k in DEFAULT_SETTINGS) || SECRET_KEYS.includes(k) || k === "cguAccepted" || k === "cguAcceptedAt") continue;
+      if (typeof v !== typeof DEFAULT_SETTINGS[k]) continue;
+      if (k === "provider" && !PROVIDERS.includes(v)) continue;
+      if (k === "localServerUrl") {
+        let u; try { u = new URL(v); } catch (_) { continue; }
+        if (u.protocol !== "http:" && u.protocol !== "https:") continue;
+      }
+      if (typeof v === "string" && v.length > 20000) continue;
+      incoming[k] = v;
+    }
+
+    // Un fichier de réglages peut rediriger les textes vers un autre serveur :
+    // on le dit explicitement avant d'appliquer.
+    const routing = [];
+    if (incoming.provider) routing.push(`fournisseur : ${incoming.provider}`);
+    if (incoming.localServerUrl) routing.push(`serveur local : ${incoming.localServerUrl}`);
+    if (routing.length && !confirm(`Ce fichier modifie la destination des textes envoyés à l'IA (${routing.join(" ; ")}).\n\nN'importez que des fichiers que vous avez créés vous-même. Continuer ?`)) {
+      throw new Error("import annulé");
+    }
+    await saveSettings(incoming);
+
+    // Actions du menu
+    let imported = 0, failed = 0;
+    const menu = payload.menu || {};
+    for (const [id, ov] of Object.entries(menu.overrides || {})) {
+      if (!MENU_ITEMS.some(m => m.id === id) || !ov || typeof ov !== "object") continue;
+      try { await saveMenuItem(id, ov); imported++; } catch (_) { failed++; }
+    }
+    for (const c of menu.custom || []) {
+      if (!c || !c.id || !c.title || !c.prompt) continue;
+      try {
+        await saveMenuItem(c.id, { custom: true, title: c.title, prompt: c.prompt, examples: c.examples || [], enabled: c.enabled !== false });
+        imported++;
+      } catch (_) { failed++; }
+    }
+
+    const settings = await loadSettings();
+    fillForm(settings);
+    await loadMenuItems();
+    chrome.runtime.sendMessage({ action: "rebuildMenus" }).catch(() => {});
+
+    backupResult.textContent = `✅ Réglages importés (${imported} action${imported > 1 ? "s" : ""}${failed ? `, ${failed} ignorée${failed > 1 ? "s" : ""} : trop volumineuse${failed > 1 ? "s" : ""}` : ""}). Les clés API sont à ressaisir.`;
+    backupResult.className = "test-result success";
+  } catch (err) {
+    backupResult.textContent = "❌ Import impossible : " + err.message;
+    backupResult.className = "test-result error";
+  }
+});
+
+// ===========================================================================
+// 10. Navigation latérale — scroll-spy
+// ===========================================================================
+{
+  const navLinks = Array.from(document.querySelectorAll("#sidenav a[href^='#']"));
+  const sections = navLinks.map(a => document.querySelector(a.getAttribute("href"))).filter(Boolean);
+  if (navLinks.length && "IntersectionObserver" in window) {
+    const setActive = (id) => navLinks.forEach(a => a.classList.toggle("active", a.getAttribute("href") === `#${id}`));
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+      if (visible.length) setActive(visible[0].target.id);
+    }, { rootMargin: "-80px 0px -60% 0px", threshold: 0 });
+    sections.forEach(s => observer.observe(s));
+  }
+}
+
+// ===========================================================================
+// 11. Initialisation
+// ===========================================================================
+(async () => {
+  const settings = await loadSettings();
+  if (settings.cguAccepted !== CGU_VERSION) cguOverlay.classList.remove("hidden");
+  await loadMenuItems();          // remplit aussi le sélecteur d'action rapide
+  fillForm(settings);
+  await restoreModelCaches();
 })();

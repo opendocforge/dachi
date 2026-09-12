@@ -1,0 +1,11 @@
+{
+  "name": "dachi",
+  "version": "1.2.0",
+  "private": true,
+  "description": "Extension Chrome de productivité rédactionnelle pour professionnels de santé",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "license": "MIT"
+}

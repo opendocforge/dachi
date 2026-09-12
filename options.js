@@ -594,7 +594,8 @@ function iconButton(label, title, extraClass = "") {
 // Utilisé dans le panneau d'édition de chaque action et dans le formulaire
 // de création. getValue() renvoie null (pas de questions) ou
 // { intro, submitLabel, fields: [{ key, label, type, placeholder, required, options?, suggestions? }] }.
-const FIELD_TYPES = [["text", "Texte court"], ["textarea", "Texte long"], ["select", "Liste de choix"]];
+const FIELD_TYPES = [["text", "Texte court"], ["textarea", "Texte long"], ["select", "Liste de choix (un seul)"], ["checkboxes", "Cases à cocher (plusieurs choix)"]];
+const HAS_OPTIONS = (type) => type === "select" || type === "checkboxes";
 
 function slugKey(label, idx) {
   const base = String(label || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -698,7 +699,7 @@ function buildFormEditor(initial) {
       optionsInput.value = f.options;
       optionsInput.addEventListener("input", () => { f.options = optionsInput.value; });
       optionsCol.appendChild(optionsInput);
-      optionsCol.classList.toggle("hidden", f.type !== "select");
+      optionsCol.classList.toggle("hidden", !HAS_OPTIONS(f.type));
       card.appendChild(optionsCol);
 
       const phCol = el("div", "edit-col");
@@ -709,13 +710,13 @@ function buildFormEditor(initial) {
       phInput.value = f.placeholder;
       phInput.addEventListener("input", () => { f.placeholder = phInput.value; });
       phCol.appendChild(phInput);
-      phCol.classList.toggle("hidden", f.type === "select");
+      phCol.classList.toggle("hidden", HAS_OPTIONS(f.type));
       card.appendChild(phCol);
 
       typeSelect.addEventListener("change", () => {
         f.type = typeSelect.value;
-        optionsCol.classList.toggle("hidden", f.type !== "select");
-        phCol.classList.toggle("hidden", f.type === "select");
+        optionsCol.classList.toggle("hidden", !HAS_OPTIONS(f.type));
+        phCol.classList.toggle("hidden", HAS_OPTIONS(f.type));
       });
 
       const reqRow = el("div", "checkbox-row");
@@ -755,7 +756,7 @@ function buildFormEditor(initial) {
         .map((f, idx) => {
           const spec = { key: slugKey(f.label, idx), label: f.label, type: f.type };
           if (f.required) spec.required = true;
-          if (f.type === "select") {
+          if (HAS_OPTIONS(f.type)) {
             spec.options = f.options.split(",").map(s => s.trim()).filter(Boolean);
             if (!spec.options.length) spec.type = "text";
           } else if (f.placeholder.trim()) {

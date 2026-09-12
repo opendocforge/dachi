@@ -166,3 +166,15 @@ test("menu-store : ordre personnalisé des actions (menuOrder), inconnus à la f
 
   assert.deepEqual(applyMenuOrder([{ id: "a" }, { id: "b" }], ["b"]).map(i => i.id), ["b", "a"]);
 });
+
+test("courrier d'adressage guidé : exclusion des données obsolètes (cases à cocher) et règles de datation", () => {
+  const guide = MENU_ITEMS.find(m => m.id === "courrier_adressage_guide");
+  const exclure = guide.form.fields.find(f => f.key === "exclure");
+  assert.equal(exclure.type, "checkboxes");
+  assert.ok(exclure.options.some(o => /examen clinique/i.test(o)));
+  assert.ok(guide.form.fields.some(f => f.key === "ignorer"), "champ libre « autres éléments à ignorer »");
+  assert.match(guide.prompt, /Ne pas reprendre des données sources/);
+  assert.match(guide.prompt, /jamais au présent/);
+  assert.match(guide.examples[0].input, /Ne pas reprendre des données sources : Examen clinique/);
+  assert.doesNotMatch(guide.examples[0].output, /auscultation|œdème|abdomen/i, "l'exemple n'a pas repris l'examen clinique exclu");
+});

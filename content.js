@@ -301,7 +301,7 @@
         const previous = lastAnswers[request.menuId] || {};
 
         for (const f of form.fields || []) {
-            const half = f.type !== 'textarea';
+            const half = f.type !== 'textarea' && f.type !== 'checkboxes';
             const field = el('div', 'dc-field' + (half ? ' dc-field-half' : ''));
             const id = `dc-f-${f.key}`;
             const label = el('label', null, f.label + (f.required ? ' *' : ''));
@@ -317,6 +317,27 @@
                     o.value = opt;
                     control.appendChild(o);
                 }
+            } else if (f.type === 'checkboxes') {
+                // Plusieurs choix : la « valeur » est la liste des cases cochées
+                control = el('div', 'dc-checks');
+                const prevSet = new Set(String(previous[f.key] || '').split(', ').filter(Boolean));
+                (f.options || []).forEach((opt, i) => {
+                    const item = el('label', 'dc-check');
+                    const cb = el('input');
+                    cb.type = 'checkbox';
+                    cb.value = opt;
+                    cb.id = `${id}-${i}`;
+                    cb.checked = prevSet.has(opt);
+                    item.appendChild(cb);
+                    item.appendChild(el('span', null, opt));
+                    control.appendChild(item);
+                });
+                Object.defineProperty(control, 'value', {
+                    get() { return Array.from(control.querySelectorAll('input:checked')).map(c => c.value).join(', '); },
+                    set(v) { const set = new Set(String(v || '').split(', ')); control.querySelectorAll('input').forEach(c => { c.checked = set.has(c.value); }); }
+                });
+                control.focus = () => { const first = control.querySelector('input'); if (first) first.focus(); };
+                label.htmlFor = '';
             } else {
                 control = el('input');
                 control.type = 'text';
@@ -328,9 +349,11 @@
                     field.appendChild(dl);
                 }
             }
-            control.id = id;
-            if (f.placeholder) control.placeholder = f.placeholder;
-            if (previous[f.key] != null) control.value = previous[f.key];
+            if (f.type !== 'checkboxes') {
+                control.id = id;
+                if (f.placeholder) control.placeholder = f.placeholder;
+                if (previous[f.key] != null) control.value = previous[f.key];
+            }
             controls[f.key] = control;
             field.appendChild(label);
             field.appendChild(control);
@@ -363,7 +386,8 @@
 
         for (const c of Object.values(controls)) {
             c.addEventListener('input', () => c.classList.remove('dc-invalid'));
-            if (c.tagName !== 'TEXTAREA') c.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+            c.addEventListener('change', () => c.classList.remove('dc-invalid'));
+            if (c.tagName === 'INPUT' || c.tagName === 'SELECT') c.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
         }
 
         setActions(

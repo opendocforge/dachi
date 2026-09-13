@@ -52,10 +52,11 @@ test("createSSEParser : lignes partielles, CRLF, commentaires et [DONE]", () => 
 });
 
 test("deltaContentOf : delta de streaming et message complet", () => {
-  assert.deepEqual(deltaContentOf({ choices: [{ delta: { content: "Bon" } }] }), { text: "Bon", finishReason: null });
-  assert.deepEqual(deltaContentOf({ choices: [{ delta: { reasoning_content: "…" }, finish_reason: "length" }] }), { text: "", finishReason: "length" });
-  assert.deepEqual(deltaContentOf({ choices: [{ message: { content: "Tout" }, finish_reason: "stop" }] }), { text: "Tout", finishReason: "stop" });
-  assert.deepEqual(deltaContentOf({}), { text: "", finishReason: null });
+  assert.deepEqual(deltaContentOf({ choices: [{ delta: { content: "Bon" } }] }), { text: "Bon", reasoning: "", finishReason: null });
+  assert.deepEqual(deltaContentOf({ choices: [{ delta: { reasoning_content: "hmm" }, finish_reason: "length" }] }), { text: "", reasoning: "hmm", finishReason: "length" });
+  assert.deepEqual(deltaContentOf({ choices: [{ delta: { reasoning: "r" } }] }), { text: "", reasoning: "r", finishReason: null }, "format OpenRouter");
+  assert.deepEqual(deltaContentOf({ choices: [{ message: { content: "Tout" }, finish_reason: "stop" }] }), { text: "Tout", reasoning: "", finishReason: "stop" });
+  assert.deepEqual(deltaContentOf({}), { text: "", reasoning: "", finishReason: null });
 });
 
 test("resolveModelId : identifiant exact, casse, nom d'affichage OpenRouter, variantes :free", async () => {
@@ -87,4 +88,17 @@ test("composeFormText : données sources + consignes, champs vides omis, multili
   const out = composeFormText(form, "CR du 12/03/2024 : HTA.", { dest: "Dr Durand", motif: "Avis\nHolter souhaité", vide: "  " });
   assert.equal(out, "### Données sources\nCR du 12/03/2024 : HTA.\n\n### Consignes du médecin\n- Destinataire : Dr Durand\n- Motif : \n  Avis\n  Holter souhaité");
   assert.equal(composeFormText({ fields: [] }, "", {}), "### Données sources\n(aucune)\n\n### Consignes du médecin\n(aucune)");
+});
+
+test("pickReasoningEffort : auto → none si possible, sinon le plus faible ; rapprochement vers le bas", async () => {
+  const { pickReasoningEffort } = await import("../lib/utils.js");
+  const gemma = ["none", "low", "medium", "high"];
+  assert.equal(pickReasoningEffort("auto", gemma), "none");
+  assert.equal(pickReasoningEffort("medium", gemma), "medium");
+  assert.equal(pickReasoningEffort("auto", ["low", "medium", "high"]), "low", "gpt-oss : pas de none");
+  assert.equal(pickReasoningEffort("none", ["low", "medium", "high"]), "low");
+  assert.equal(pickReasoningEffort("medium", ["none", "high"]), "none", "Mistral Medium : medium non accepté → vers le bas");
+  assert.equal(pickReasoningEffort("high", ["none", "high"]), "high");
+  assert.equal(pickReasoningEffort("auto", null), null, "modèle sans raisonnement : rien à envoyer");
+  assert.equal(pickReasoningEffort("low", []), null);
 });

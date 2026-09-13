@@ -105,6 +105,8 @@ const temperatureSlider = $("temperature");
 const tempValueDisplay = $("temp-value");
 const streamEnabledCheckbox = $("stream-enabled");
 const maxTokensSelect = $("max-tokens");
+const reasoningEffortSelect = $("reasoning-effort");
+const fewShotLimitSelect = $("few-shot-limit");
 const quickActionSelect = $("quick-action");
 const doctorContextTextarea = $("doctor-context");
 
@@ -197,6 +199,8 @@ function readForm() {
     temperature: parseFloat(temperatureSlider.value),
     streamEnabled: streamEnabledCheckbox.checked,
     maxTokens: parseInt(maxTokensSelect.value, 10) || DEFAULT_SETTINGS.maxTokens,
+    reasoningEffort: reasoningEffortSelect.value || DEFAULT_SETTINGS.reasoningEffort,
+    fewShotLimit: Number.isFinite(parseInt(fewShotLimitSelect.value, 10)) ? parseInt(fewShotLimitSelect.value, 10) : DEFAULT_SETTINGS.fewShotLimit,
     quickActionId: quickActionSelect.value || DEFAULT_SETTINGS.quickActionId,
     doctorContext: doctorContextTextarea.value.trim(),
     anonymizeEnabled: anonymizeCheckbox.checked,
@@ -223,6 +227,8 @@ function fillForm(s) {
   tempValueDisplay.textContent = s.temperature;
   streamEnabledCheckbox.checked = s.streamEnabled;
   maxTokensSelect.value = String(s.maxTokens || DEFAULT_SETTINGS.maxTokens);
+  reasoningEffortSelect.value = s.reasoningEffort || DEFAULT_SETTINGS.reasoningEffort;
+  fewShotLimitSelect.value = String(Number.isFinite(s.fewShotLimit) ? s.fewShotLimit : DEFAULT_SETTINGS.fewShotLimit);
   if (maxTokensSelect.value !== String(s.maxTokens || DEFAULT_SETTINGS.maxTokens)) maxTokensSelect.value = String(DEFAULT_SETTINGS.maxTokens);
   doctorContextTextarea.value = s.doctorContext;
   anonymizeCheckbox.checked = s.anonymizeEnabled;

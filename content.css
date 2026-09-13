@@ -408,6 +408,15 @@
   .dc-form { padding: 12px 14px 4px; }
 }
 
+/* ─── Chronométrage ──────────────────────────────────────────── */
+.dc-timing {
+  margin: -8px 18px 10px;
+  font-family: var(--dc-font);
+  font-size: 11.5px;
+  color: var(--dc-text-3);
+  flex-shrink: 0;
+}
+
 /* ─── Affiner ────────────────────────────────────────────────── */
 .dc-refine {
   display: flex;

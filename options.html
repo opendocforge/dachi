@@ -1172,6 +1172,29 @@
             <p class="api-help">1 000 jetons ≈ 700 mots. Le modèle s'arrête de lui-même quand il a fini : un plafond élevé ne rallonge pas les réponses, il évite seulement qu'elles soient coupées.</p>
           </div>
 
+          <div class="form-group">
+            <label for="reasoning-effort">Raisonnement interne du modèle <span class="label-hint">— Gemma 4, Qwen 3.5/3.6, GPT-5, modèles « thinking »…</span></label>
+            <select id="reasoning-effort">
+              <option value="auto">Automatique — désactivé quand le modèle le permet (recommandé)</option>
+              <option value="none">Désactivé — le plus rapide</option>
+              <option value="low">Faible</option>
+              <option value="medium">Moyen</option>
+              <option value="high">Élevé — le plus lent</option>
+            </select>
+            <p class="api-help">Ces modèles « réfléchissent » avant d'écrire : des centaines de jetons invisibles qui rallongent l'attente sans rien apporter à un travail de rédaction. Les modèles sans raisonnement (Mistral Small, Llama…) ignorent ce réglage.</p>
+          </div>
+
+          <div class="form-group">
+            <label for="few-shot-limit">Exemples envoyés par action <span class="label-hint">— few-shot</span></label>
+            <select id="few-shot-limit">
+              <option value="4">Tous (fidélité maximale au format)</option>
+              <option value="2">2 premiers</option>
+              <option value="1">1 seul</option>
+              <option value="0">Aucun — le plus léger</option>
+            </select>
+            <p class="api-help">Chaque exemple ajoute quelques centaines de jetons à lire avant de répondre. À réduire si le modèle suit déjà bien le format.</p>
+          </div>
+
           <div class="checkbox-row">
             <input type="checkbox" id="stream-enabled" checked>
             <label for="stream-enabled">Afficher la réponse au fur et à mesure (streaming)</label>

@@ -130,6 +130,11 @@
             try { lastSelectionRange = sel.getRangeAt(0).cloneRange(); } catch (_) {}
         }
         lastSelectionText = getSelectionText();
+
+        // Réveille le Service Worker pendant que le menu s'ouvre (démarrage à froid absorbé)
+        if (lastSelectionText.trim()) {
+            try { const p = chrome.runtime.sendMessage({ action: 'wake' }); if (p && p.catch) p.catch(() => {}); } catch (_) {}
+        }
     }, true);
 
     // ─── DOM (dans le Shadow DOM fermé) ───────────────────────────────────
@@ -463,8 +468,8 @@
         setTimeout(() => ta.focus(), 50);
     }
 
-    /** Texte partiel pendant le streaming. */
-    function showStream(title, partial) {
+    /** Texte partiel pendant le streaming (ou activité de raisonnement avant le premier mot). */
+    function showStream(title, partial, reasoningChars) {
         if (mode !== 'stream') {
             mode = 'stream';
             titleEl.textContent = title;
@@ -475,6 +480,12 @@
             bodyEl.appendChild(ta);
             setActions();
             openPreview();
+        }
+        const b = bodyEl.querySelector('.dc-banner');
+        if (b) {
+            b.innerHTML = (!partial && reasoningChars)
+                ? `🧠 Le modèle réfléchit avant de répondre… (~${Math.round(reasoningChars / 5).toLocaleString('fr-FR')} mots de raisonnement interne). Pour aller plus vite, réglez « Raisonnement » sur « désactivé » dans les options.`
+                : '✨ Génération en cours…';
         }
         const ta = shadow.getElementById('dc-textarea');
         if (!ta) return;
@@ -504,6 +515,18 @@
 
         const ta = makeTextarea(payload.result);
         bodyEl.appendChild(ta);
+
+        if (payload.timing && payload.timing.totalMs) {
+            const t = payload.timing;
+            const words = Math.round((t.outputChars || 0) / 6);
+            const genMs = Math.max(1, t.totalMs - t.ttftMs);
+            const wps = words && genMs ? Math.round(words / (genMs / 1000)) : 0;
+            const parts = [`premier mot ${(t.ttftMs / 1000).toFixed(1).replace('.', ',')} s`, `total ${(t.totalMs / 1000).toFixed(1).replace('.', ',')} s`];
+            if (wps) parts.push(`~${wps} mots/s`);
+            if (t.reasoningChars) parts.push(`raisonnement interne ~${Math.round(t.reasoningChars / 5).toLocaleString('fr-FR')} mots`);
+            if (t.model) parts.push(t.model);
+            bodyEl.appendChild(el('p', 'dc-timing', '⏱ ' + parts.join(' · ')));
+        }
 
         // Affiner : consigne supplémentaire appliquée à la réponse précédente
         const refine = el('div', 'dc-refine');
@@ -709,7 +732,7 @@
             case 'form':    showForm(msg.title, msg.form || { fields: [] }, msg.request || {}); break;
             case 'loading': showLoading(msg.title, { inputChars: msg.inputChars, isLocal: msg.isLocal }); break;
             case 'preview': showPreview(msg.title, msg.request); break;
-            case 'stream':  showStream(msg.title, msg.partial); break;
+            case 'stream':  showStream(msg.title, msg.partial, msg.reasoningChars); break;
             case 'result':  showResult(msg); break;
             case 'error':   showError(msg.title, msg.error); break;
             case 'reopen':  reopenLast(); break;

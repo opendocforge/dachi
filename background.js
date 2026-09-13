@@ -12,8 +12,23 @@ import { loadSettings, DEFAULT_SETTINGS } from "./lib/settings.js";
 import { loadMenuConfig, resolveMenuItems, isMenuKey } from "./lib/menu-store.js";
 import {
   remoteOriginPattern, isKnownError, isRetryableError, errorKeyOf,
-  createSSEParser, deltaContentOf, sleep, resolveModelId, composeFormText
+  createSSEParser, deltaContentOf, sleep, resolveModelId, composeFormText, pickReasoningEffort
 } from "./lib/utils.js";
+
+// Modèles Scaleway acceptant reasoning_effort (doc « Supported models »,
+// sept. 2026). Les autres (Mistral Small, Llama, Gemma 3, Nemo…) n'acceptent
+// pas le paramètre : on ne l'envoie pas.
+const SCALEWAY_REASONING = [
+  { re: /^(gemma-4|qwen3\.[56]|qwen3-235b-a22b-thinking)/i, efforts: ["none", "low", "medium", "high"] },
+  { re: /^(mistral-medium-3\.5|mistral-large-3)/i, efforts: ["none", "high"] },
+  { re: /^(deepseek-v4|glm-|minimax)/i, efforts: ["none", "low", "high", "max"] },
+  { re: /^gpt-oss/i, efforts: ["low", "medium", "high"] },
+  { re: /magistral/i, efforts: ["low", "medium", "high"] }
+];
+function scalewayReasoningEfforts(model) {
+  const hit = SCALEWAY_REASONING.find(r => r.re.test(model || ""));
+  return hit ? hit.efforts : null;
+}
 
 const ROOT_MENU_ID = "assistant_medecin_root";
 const REOPEN_MENU_ID = "dachi_reopen_last";
@@ -171,10 +186,11 @@ async function resolveMenuItem(menuId) {
 async function startAction({ tabId, menuId, fallbackText, answers, sourceText }) {
   let item = null;
   try {
-    item = await resolveMenuItem(menuId);
+    // Démarrage en parallèle : résolution de l'action, injection du script de
+    // page et lecture des réglages sont indépendants (≈ 100–200 ms gagnés).
+    const [resolved, , settingsEarly] = await Promise.all([resolveMenuItem(menuId), ensureContentScript(tabId), loadSettings()]);
+    item = resolved;
     if (!item) return;
-
-    await ensureContentScript(tabId);
     let text = typeof sourceText === "string" ? sourceText : await getSelectionFromTab(tabId, fallbackText);
     if (!text.trim()) {
       safeSend(tabId, { phase: "toast", message: "Sélectionnez d'abord du texte.", isError: true });
@@ -194,7 +210,7 @@ async function startAction({ tabId, menuId, fallbackText, answers, sourceText })
       formUsed = true;
     }
 
-    const settings = await loadSettings();
+    const settings = settingsEarly;
     if (settings.cguAccepted !== "1.0") {
       chrome.runtime.openOptionsPage();
       throw new Error("CGU_NOT_ACCEPTED");
@@ -248,18 +264,32 @@ async function runGeneration({ tabId, item, request, settings }) {
     // Streaming : on pousse le texte partiel (ré-identifié) à intervalle régulier
     let lastPush = 0;
     let pending = null;
-    const onChunk = (partial) => {
+    const t0 = Date.now();
+    let tFirst = 0;
+    let reasoningChars = 0;
+    const onChunk = (partial, meta) => {
+      if (meta && meta.reasoningChars != null) reasoningChars = meta.reasoningChars;
+      if (partial && !tFirst) tFirst = Date.now();
       const now = Date.now();
       if (now - lastPush >= STREAM_THROTTLE_MS) {
         lastPush = now;
         if (pending) { clearTimeout(pending); pending = null; }
-        safeSend(tabId, { phase: "stream", title: item.title, partial: rehydrate(partial).text });
+        safeSend(tabId, { phase: "stream", title: item.title, partial: rehydrate(partial).text, reasoningChars });
       } else if (!pending) {
-        pending = setTimeout(() => { pending = null; onChunk(partial); }, STREAM_THROTTLE_MS);
+        pending = setTimeout(() => { pending = null; onChunk(partial, meta); }, STREAM_THROTTLE_MS);
       }
     };
 
     const { text, finishReason, usage } = await callAI(settings, item, request, settings.streamEnabled ? onChunk : null);
+    const tEnd = Date.now();
+    const timing = {
+      ttftMs: (tFirst || tEnd) - t0,
+      totalMs: tEnd - t0,
+      outputChars: (text || "").length,
+      reasoningChars,
+      model: (await providerRequest(settings)).model,
+      provider: settings.provider
+    };
     if (pending) { clearTimeout(pending); pending = null; }
 
     if (!text || !text.trim()) throw new Error("EMPTY_RESPONSE");
@@ -273,6 +303,7 @@ async function runGeneration({ tabId, item, request, settings }) {
       rehydration: { enabled: !!settings.rehydrateEnabled, restored: final.restored },
       truncated: finishReason === "length",
       usage: usageSummary(usage, settings.maxTokens || DEFAULT_SETTINGS.maxTokens),
+      timing,
       request: { menuId: request.menuId, title: item.title, text: request.text, anonymization: request.anonymization, map, formUsed: !!request.formUsed }
     });
   } catch (error) {
@@ -297,7 +328,8 @@ function buildMessages(settings, item, request) {
   }
 
   const messages = [{ role: "system", content: system }];
-  for (const ex of item.examples || []) {
+  const limit = Number.isFinite(settings.fewShotLimit) ? settings.fewShotLimit : 4;
+  for (const ex of (item.examples || []).slice(0, Math.max(0, limit))) {
     if (ex.input && ex.output) {
       messages.push({ role: "user", content: ex.input });
       messages.push({ role: "assistant", content: ex.output });
@@ -331,7 +363,10 @@ async function providerRequest(settings) {
         isLocal: false,
         // Modèles à raisonnement (gpt-oss, *-thinking, magistral) : effort réduit,
         // sinon le budget de réponse part en raisonnement interne.
-        adaptBody: (b) => /gpt-oss|thinking|magistral/i.test(b.model) ? { ...b, reasoning_effort: "low" } : b
+        adaptBody: (b) => {
+          const effort = pickReasoningEffort(settings.reasoningEffort || "auto", scalewayReasoningEfforts(b.model));
+          return effort ? { ...b, reasoning_effort: effort } : b;
+        }
       };
     }
     case "local": {
@@ -366,7 +401,7 @@ async function providerRequest(settings) {
         firstByteTimeoutMs: 90000,
         isLocal: false,
         usageInStream: true,
-        adaptBody: adaptOpenAIBody
+        adaptBody: (b) => adaptOpenAIBody(b, settings.reasoningEffort || "auto")
       };
     }
     case "openrouter": {
@@ -388,7 +423,12 @@ async function providerRequest(settings) {
         firstByteTimeoutMs: 120000,
         isLocal: false,
         // Refuse le routage vers les fournisseurs qui conservent / entraînent sur les données
-        extraBody: { provider: { data_collection: "deny" }, reasoning: { effort: "low" } },
+        extraBody: {
+          provider: { data_collection: "deny" },
+          reasoning: (settings.reasoningEffort || "auto") === "auto" || settings.reasoningEffort === "none"
+            ? { enabled: false }
+            : { effort: settings.reasoningEffort }
+        },
         // Les fournisseurs OpenAI-compatibles renvoient l'usage en fin de flux si demandé
         usageInStream: true
       };
@@ -405,13 +445,16 @@ async function providerRequest(settings) {
  * - les modèles à raisonnement refusent `temperature` ≠ 1 → on l'omet et on
  *   demande un raisonnement faible (rapide, économique, suffisant pour rédiger).
  */
-function adaptOpenAIBody(body) {
+function adaptOpenAIBody(body, requested = "auto") {
   const { max_tokens, temperature, ...rest } = body;
   const isReasoning = /^(o\d|gpt-[5-9])/i.test(body.model) && !/chat/i.test(body.model);
+  let effort = requested === "auto" || requested === "none"
+    ? (/^gpt-5/i.test(body.model) ? "minimal" : "low")   // « minimal » n'existe que sur GPT-5+, « none » n'est pas universel
+    : requested;
   return {
     ...rest,
     max_completion_tokens: max_tokens,
-    ...(isReasoning ? { reasoning_effort: "low" } : { temperature })
+    ...(isReasoning ? { reasoning_effort: effort } : { temperature })
   };
 }
 
@@ -476,15 +519,17 @@ async function chatCompletion({ url, headers, body, timeoutMs, firstByteTimeoutM
       let text = "";
       let finishReason = null;
       let usage = null;
+      let reasoningChars = 0;
       const consume = (events) => {
         for (const data of events) {
           if (data === "[DONE]") continue;
           let payload;
           try { payload = JSON.parse(data); } catch (_) { continue; }
           if (payload && payload.usage) usage = payload.usage;
-          const { text: piece, finishReason: fr } = deltaContentOf(payload);
+          const { text: piece, reasoning, finishReason: fr } = deltaContentOf(payload);
           if (fr) finishReason = fr;
-          if (piece) { text += piece; onChunk(text); }
+          if (reasoning) { reasoningChars += reasoning.length; if (!text) onChunk("", { reasoningChars }); }
+          if (piece) { text += piece; onChunk(text, { reasoningChars }); }
         }
       };
       for (;;) {
@@ -616,6 +661,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   };
 
   switch (message && message.action) {
+    case "wake":
+      // Réveil anticipé (clic droit) : le SW est déjà démarré quand l'action arrive
+      sendResponse({ ok: true });
+      return false;
+
     case "openOptions":
       chrome.runtime.openOptionsPage();
       sendResponse({ ok: true });

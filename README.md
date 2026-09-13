@@ -103,6 +103,17 @@ Le serveur peut tourner sur une autre machine que celle du cabinet, par exemple 
 2. Dans les options Dachi, renseignez l'URL (ex : `http://100.x.y.z:11434/v1`) et cliquez sur **Tester la connexion**.
 3. Chrome demande une fois l'autorisation d'accéder à cette adresse (`optional_host_permissions`) : acceptez. Les permissions par défaut de l'extension restent limitées à `localhost`.
 
+## Réduire la latence
+
+Ce qui compte, dans l'ordre :
+
+1. **Désactiver le raisonnement interne** (options → Modèle → « Raisonnement interne du modèle »). Gemma 4, Qwen 3.5/3.6, Mistral Medium 3.5, DeepSeek V4, GLM 5.2 et les GPT-5 « réfléchissent » avant d'écrire : des centaines de jetons invisibles qui rallongent l'attente sans rien apporter à la rédaction. « Automatique » (défaut) le désactive dès que le modèle l'accepte. La modale signale quand un modèle réfléchit (« Le modèle réfléchit avant de répondre… »).
+2. **Choisir un modèle rapide** — sur Scaleway, les architectures MoE à peu de paramètres actifs (`gemma-4-26b-a4b-it`, `qwen3.5-35b-a3b`, `qwen3.6-35b-a3b`) écrivent nettement plus vite qu'un modèle dense de 24 B (`mistral-small-3.2`). La ligne ⏱ sous chaque résultat (premier mot, total, mots/s, raisonnement) permet de comparer.
+3. **Alléger le prompt** — « Exemples envoyés par action » (options) réduit les exemples few-shot ; un contexte médecin court ; une sélection limitée aux passages utiles.
+4. Le reste est pris en charge : réponse en streaming, réveil anticipé de l'extension au clic droit, démarrage parallélisé, connexion réutilisée.
+
+Pour un serveur local, la vitesse dépend surtout du matériel (GPU) et de la taille du modèle ; avec Ollama, un modèle quantifié 4 bits de 7–14 B est le bon compromis.
+
 ## Cadre légal et responsabilité
 
 ### L'utilisateur est responsable

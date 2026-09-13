@@ -111,6 +111,25 @@
     const shadow = host.attachShadow({ mode: 'closed' });
     const insideModal = (t) => t === host || (t && t.nodeType === Node.ELEMENT_NODE && host.contains(t));
 
+    /**
+     * Mémorise le champ éditable courant et la sélection. Appelé à l'injection
+     * (première utilisation sur la page : le clic droit a eu lieu AVANT que nos
+     * écouteurs existent), au clic droit, à la demande de sélection du Service
+     * Worker et juste avant que la modale ne prenne le focus.
+     */
+    function captureContext(force) {
+        const sel = document.getSelection();
+        let candidate = null;
+        if (document.activeElement && !insideModal(document.activeElement)) candidate = findEditableAncestor(document.activeElement);
+        if (!candidate && sel && sel.anchorNode) candidate = findEditableAncestor(sel.anchorNode);
+        if (candidate && (force || !lastFocusedEditable)) lastFocusedEditable = candidate;
+        if (sel && sel.rangeCount > 0 && (force || !lastSelectionRange)) {
+            try { lastSelectionRange = sel.getRangeAt(0).cloneRange(); } catch (_) {}
+        }
+        const text = getSelectionText();
+        if (text.trim() && (force || !lastSelectionText.trim())) lastSelectionText = text;
+    }
+
     document.addEventListener('focusin', (e) => {
         const el = e.target;
         if (el && !insideModal(el) && isEditableEl(el)) lastFocusedEditable = el;
@@ -211,6 +230,7 @@
     function openPreview() {
         if (!overlay.classList.contains('visible')) {
             previousFocus = document.activeElement;
+            captureContext(false);
             overlay.classList.add('visible');
         }
     }
@@ -631,7 +651,11 @@
 
         // 1) champ éditable mémorisé → insertion ; 2) range capturée → restauration ;
         // 3) dernier recours : presse-papier.
-        const target = lastFocusedEditable;
+        let target = lastFocusedEditable;
+        if (!(target && document.contains(target))) target = findEditableAncestor(previousFocus);
+        if (!target && lastSelectionRange) {
+            try { target = findEditableAncestor(lastSelectionRange.startContainer); } catch (_) {}
+        }
         if (target && document.contains(target)) {
             try { target.focus(); } catch (_) {}
 
@@ -722,11 +746,15 @@
         });
     }
 
+    // Première utilisation sur la page : le clic droit vient d'avoir lieu,
+    // le champ est encore actif et la sélection encore en place.
+    captureContext(true);
+
     // ─── Messages du Service Worker ──────────────────────────────────────
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         if (!msg) return;
         if (msg.action === 'ping') { sendResponse({ pong: true }); return; }
-        if (msg.action === 'getSelection') { sendResponse({ text: getSelectionText() }); return; }
+        if (msg.action === 'getSelection') { captureContext(false); sendResponse({ text: getSelectionText() }); return; }
 
         switch (msg.phase) {
             case 'form':    showForm(msg.title, msg.form || { fields: [] }, msg.request || {}); break;

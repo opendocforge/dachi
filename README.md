@@ -85,7 +85,7 @@ La table de correspondance ne quitte jamais votre poste : elle sert à **ré-ide
 
 1. Créez une clé API sur [console.scaleway.com](https://console.scaleway.com/iam/api-keys)
 2. Dans les options Dachi, sélectionnez Scaleway et collez votre clé
-3. Choisissez le modèle (Mistral Small 3.2 par défaut) — le bouton « Actualiser » charge la liste des modèles disponibles sur votre projet
+3. Choisissez le modèle (`gemma-4-26b-a4b-it` par défaut : rapide et de bonne qualité, raisonnement interne désactivé automatiquement) — le bouton « Actualiser » charge la liste des modèles disponibles sur votre projet
 
 ### Serveur local
 

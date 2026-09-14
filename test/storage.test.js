@@ -178,3 +178,14 @@ test("courrier d'adressage guidé : exclusion des données obsolètes (cases à 
   assert.match(guide.examples[0].input, /Ne pas reprendre des données sources : Examen clinique/);
   assert.doesNotMatch(guide.examples[0].output, /auscultation|œdème|abdomen/i, "l'exemple n'a pas repris l'examen clinique exclu");
 });
+
+test("correction : les raccourcis de notes ne deviennent pas des diagnostics (avc = avec)", () => {
+  const c = MENU_ITEMS.find(m => m.id === "corriger_reformuler");
+  assert.match(c.prompt, /« avc »[^.]*« avec »/, "règle explicite dans le prompt");
+  const ex = c.examples.find(e => /vu avc patiente/.test(e.input));
+  assert.ok(ex, "exemple few-shot avec le cas réel");
+  assert.match(ex.output, /vu avec la patiente/);
+  assert.doesNotMatch(ex.output, /AVC|cérumen|psychiatrique/);
+  const strict = MENU_ITEMS.find(m => m.id === "corriger_seul");
+  assert.match(strict.prompt, /jamais AVC/);
+});

@@ -314,8 +314,13 @@ async function runGeneration({ tabId, item, request, settings }) {
 // ---------------------------------------------------------------------------
 // 5. Construction des messages et appel fournisseur
 // ---------------------------------------------------------------------------
+// Convention commune à toutes les actions : les notes de consultation sont
+// pleines de raccourcis, et un modèle a tendance à les « soigner » en y
+// mettant du sens médical qui n'y est pas (« vu avc patiente » → AVC).
+const NOTES_CONVENTION = "Convention de lecture des notes médicales : le texte peut contenir des raccourcis de saisie. « avc » placé devant un nom, un article ou un pronom signifie « avec » (jamais AVC) ; « psy », « arrêt », « bio », « CR », « ATCD », « ttt », « rdv » ne sont développés que si le sens est certain, sinon conservés tels quels ; un raccourci n'est jamais transformé en diagnostic, pathologie ou examen, et aucune précision clinique absente du texte n'est ajoutée. En cas de doute, conserver la formulation d'origine.";
+
 function buildMessages(settings, item, request) {
-  let system = item.prompt;
+  let system = item.prompt + "\n\n" + NOTES_CONVENTION;
   if (settings.doctorContext && settings.doctorContext.trim()) {
     system = `Contexte du médecin : ${settings.doctorContext.trim()}\n\n${system}`;
   }

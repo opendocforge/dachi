@@ -477,7 +477,7 @@
       border: 1px solid transparent;
     }
     .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.9; }
-    .badge-hds { background: var(--accent-soft); color: var(--accent); }
+    .badge-fr { background: var(--accent-soft); color: var(--accent); }
     .badge-offline { background: var(--success-soft); color: var(--success-text); }
     .badge-warning { background: var(--warning-soft); color: var(--warning-text); }
 
@@ -830,7 +830,7 @@
           <li>Le médecin utilisateur est <strong>responsable du traitement</strong> au sens du RGPD.</li>
           <li>Il lui appartient de réaliser une <strong>AIPD (analyse d'impact)</strong> et de signer un <strong>contrat de sous-traitance (art. 28 RGPD)</strong> avec le fournisseur d'API choisi.</li>
           <li>L'extension ne stocke, ne journalise ni ne transmet aucune donnée en dehors du fournisseur API configuré par l'utilisateur.</li>
-          <li>Le choix du fournisseur (Scaleway HDS, serveur local, OpenAI, OpenRouter) relève de la seule responsabilité de l'utilisateur.</li>
+          <li>Le choix du fournisseur (Scaleway, serveur local, OpenAI, OpenRouter) et la vérification de sa conformité (hébergement, contrat de sous-traitance, éventuelle certification requise pour les données de santé) relèvent de la seule responsabilité de l'utilisateur. Dachi ne certifie la conformité d'aucun fournisseur.</li>
         </ul>
 
         <h3>4. Secret médical</h3>
@@ -912,17 +912,17 @@
           <div class="form-group">
             <label for="provider">Fournisseur</label>
             <select id="provider">
-              <option value="scaleway">Scaleway (serveur HDS)</option>
+              <option value="scaleway">Scaleway (hébergé en France)</option>
               <option value="local">Serveur local (Ollama / LM Studio)</option>
               <option value="openai">OpenAI Direct</option>
               <option value="openrouter">OpenRouter (multi-modèles)</option>
             </select>
           </div>
 
-          <!-- Scaleway HDS fields -->
+          <!-- Scaleway fields -->
           <div id="fields-scaleway" class="provider-fields active">
             <div class="form-group">
-              <span class="badge badge-hds">Hébergement HDS — France</span>
+              <span class="badge badge-fr">Hébergé en France (UE)</span>
             </div>
 
             <div class="form-group">
@@ -1039,7 +1039,7 @@
           <!-- OpenAI Direct fields -->
           <div id="fields-openai" class="provider-fields">
             <div class="form-group">
-              <span class="badge badge-warning">Non conforme HDS — données hors EEE</span>
+              <span class="badge badge-warning">Données traitées hors UE</span>
             </div>
 
             <div class="form-group">
@@ -1054,15 +1054,15 @@
             </div>
 
             <div class="info-box info-box-orange">
-              <strong>Attention : données hors EEE</strong>
-              Avec OpenAI Direct, vos données (texte sélectionné, réponses) transitent par les serveurs OpenAI situés aux États-Unis. Cette option <strong style="display:inline">n'est pas conforme</strong> à la réglementation HDS française (article L.1111-8 du Code de la santé publique). Ne l'utilisez pas avec des données de santé à caractère personnel.
+              <strong>Attention : données traitées hors UE</strong>
+              Avec OpenAI Direct, vos données (texte sélectionné, réponses) transitent par les serveurs OpenAI situés aux États-Unis, <strong style="display:inline">hors de l'Union européenne</strong>. Ne l'utilisez pas avec des données de santé à caractère personnel.
             </div>
           </div>
 
           <!-- OpenRouter fields -->
           <div id="fields-openrouter" class="provider-fields">
             <div class="form-group">
-              <span class="badge badge-warning">Non conforme HDS — routage vers des fournisseurs tiers</span>
+              <span class="badge badge-warning">Données traitées hors UE — fournisseurs tiers</span>
             </div>
 
             <div class="form-group">
@@ -1100,8 +1100,8 @@
             </div>
 
             <div class="info-box info-box-orange">
-              <strong>Attention : données hors EEE</strong>
-              OpenRouter est un agrégateur : chaque requête est routée vers le fournisseur du modèle choisi (États-Unis le plus souvent). Cette option <strong style="display:inline">n'est pas conforme</strong> à la réglementation HDS. Dachi demande à OpenRouter d'exclure les fournisseurs qui conservent ou entraînent sur les données (<code>data_collection: deny</code>), mais cela ne remplace pas un hébergement HDS. Ne l'utilisez pas avec des données de santé à caractère personnel.
+              <strong>Attention : données traitées hors UE</strong>
+              OpenRouter est un agrégateur : chaque requête est routée vers le fournisseur du modèle choisi, <strong style="display:inline">le plus souvent hors de l'Union européenne</strong>. Dachi demande à OpenRouter d'exclure les fournisseurs qui conservent ou entraînent sur les données (<code>data_collection: deny</code>), mais cela ne garantit rien quant à la localisation. Ne l'utilisez pas avec des données de santé à caractère personnel.
             </div>
           </div>
         </div>
@@ -1346,7 +1346,7 @@
           <p>Dachi est une extension de <strong>productivité rédactionnelle</strong>. Ce n'est <strong>pas un dispositif médical</strong> au sens du règlement (UE) 2017/745 (MDR). Les contenus générés sont des brouillons administratifs devant être relus et validés par le praticien.</p>
 
           <h3>Responsabilité</h3>
-          <p>Le médecin utilisateur est seul responsable de l'usage qui est fait de l'extension, de la validation des contenus générés, et de la conformité de son infrastructure au RGPD et à la réglementation HDS.</p>
+          <p>Le médecin utilisateur est seul responsable de l'usage qui est fait de l'extension, de la validation des contenus générés, et de la conformité de son infrastructure au RGPD et à la réglementation applicable à l'hébergement des données de santé.</p>
 
           <h3>Données</h3>
           <ul>

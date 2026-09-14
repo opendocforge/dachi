@@ -65,10 +65,10 @@ La table de correspondance ne quitte jamais votre poste : elle sert à **ré-ide
 
 | Fournisseur | Hébergement | Usage recommandé |
 |-------------|-------------|------------------|
-| **Scaleway AI** | 🛡️ Serveur HDS (France) | Par défaut — infrastructure certifiée HDS |
+| **Scaleway AI** | 🇫🇷 Hébergé en France (UE) | Par défaut — à vous de vérifier la conformité exigée pour vos données (contrat de sous-traitance, certification éventuelle) |
 | **Serveur local** | 🔒 100% hors-ligne | Confidentialité maximale (Ollama, LM Studio...) |
-| **OpenAI Direct** | ⚠️ Hors EEE (USA) | À éviter pour tout contenu de santé |
-| **OpenRouter** | ⚠️ Hors EEE (routage multi-fournisseurs) | Accès à des centaines de modèles avec une seule clé (`sk-or-…`) ; `data_collection: deny` demandé par défaut. À éviter pour tout contenu de santé |
+| **OpenAI Direct** | ⚠️ Hors UE (USA) | À éviter pour tout contenu de santé |
+| **OpenRouter** | ⚠️ Hors UE (routage multi-fournisseurs) | Accès à des centaines de modèles avec une seule clé (`sk-or-…`) ; `data_collection: deny` demandé par défaut. À éviter pour tout contenu de santé |
 
 ## Installation
 

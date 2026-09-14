@@ -37,7 +37,8 @@ Actions disponibles via le clic droit sur du texte sélectionné :
 
 | Action | Description |
 |--------|-------------|
-| ✏️ **Corriger & Reformuler** | Correction orthographique et reformulation stylistique |
+| ✏️ **Corriger & Reformuler** | Correction orthographique puis reformulation en français professionnel (sens et faits conservés) |
+| 🔤 **Corriger seulement** | Correction stricte des fautes, sans toucher au style |
 | 💬 **Répondre** | Brouillon de réponse courtoise (emails, messages) |
 | 📞 **Répondre Secrétariat** | Brouillon de réponse de secrétariat médical |
 | 📋 **Résumer** | Synthèse rédactionnelle d'un texte long |

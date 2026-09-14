@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Dachi",
-  "version": "1.3.7",
+  "version": "1.3.8",
   "minimum_chrome_version": "111",
   "description": "Dachi — Extension de productivité rédactionnelle pour professionnels de santé. Brouillons administratifs générés par IA. N'est pas un dispositif médical.",
   "permissions": [

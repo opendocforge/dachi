@@ -156,7 +156,7 @@ test("menu-store : ordre personnalisé des actions (menuOrder), inconnus à la f
   await saveMenuOrder(["traduire_francais", "custom_z", "corriger_reformuler"]);
   let items = resolveMenuItems(MENU_ITEMS, await loadMenuConfig());
   assert.deepEqual(items.slice(0, 3).map(i => i.id), ["traduire_francais", "custom_z", "corriger_reformuler"]);
-  assert.equal(items[3].id, "repondre", "les autres suivent dans l'ordre naturel");
+  assert.equal(items[3].id, "corriger_seul", "les autres suivent dans l'ordre naturel");
   assert.equal(items.length, MENU_ITEMS.length + 1);
 
   await saveMenuOrder([]);

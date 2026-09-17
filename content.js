@@ -73,7 +73,7 @@
     let lastResult = null;       // dernier résultat affiché (pour « rouvrir »)
     let previousFocus = null;    // focus à restaurer à la fermeture
     let mode = null;             // form | loading | preview | stream | result | error
-    let insertWhenReady = false; // Alt+Maj+V pressé pendant la génération → insérer dès le résultat
+    let insertWhenReady = false; // Alt+V pressé pendant la génération → insérer dès le résultat
     const lastAnswers = {};      // dernières réponses par action (pré-remplissage)
 
     function isEditableEl(el) {
@@ -204,7 +204,7 @@
     }
 
     /**
-     * Demande d'insertion (raccourci Alt+Maj+V ou Ctrl+Entrée) : immédiate si
+     * Demande d'insertion (raccourci Alt+V ou Ctrl+Entrée) : immédiate si
      * un résultat est affiché, différée jusqu'à l'arrivée du résultat si une
      * génération est en cours, sinon reprend le dernier résultat de la page.
      */
@@ -216,7 +216,7 @@
             return;
         }
         if (mode === 'preview' || mode === 'form') {
-            showToast('Validez d\'abord cette étape (Entrée), puis Alt+Maj+V.', true);
+            showToast('Validez d\'abord cette étape (Entrée), puis Alt+V.', true);
             return;
         }
         if (lastResult) { showResult(lastResult); doInsert(); return; }
@@ -606,7 +606,7 @@
         setActions(
             regen,
             button('Copier', ICONS.copy, 'dc-btn-secondary', doCopy),
-            Object.assign(button('Remplacer la sélection', ICONS.insert, 'dc-btn-primary', doInsert), { title: 'Ctrl+Entrée · Alt+Maj+V' })
+            Object.assign(button('Remplacer la sélection', ICONS.insert, 'dc-btn-primary', doInsert), { title: 'Ctrl+Entrée · Alt+V' })
         );
 
         openPreview();

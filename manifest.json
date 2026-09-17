@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Dachi",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "minimum_chrome_version": "111",
   "description": "Dachi — Extension de productivité rédactionnelle pour professionnels de santé. Brouillons administratifs générés par IA. N'est pas un dispositif médical.",
   "permissions": [
@@ -39,19 +39,19 @@
   },
   "commands": {
     "action-slot-1": {
-      "suggested_key": { "default": "Alt+Shift+C" },
+      "suggested_key": { "default": "Alt+C" },
       "description": "Dachi : raccourci 1 (par défaut Corriger & Reformuler) sur le texte sélectionné"
     },
     "action-slot-2": {
-      "suggested_key": { "default": "Alt+Shift+X" },
+      "suggested_key": { "default": "Alt+X" },
       "description": "Dachi : raccourci 2 (par défaut Corriger seulement) sur le texte sélectionné"
     },
     "action-slot-3": {
-      "suggested_key": { "default": "Alt+Shift+R" },
+      "suggested_key": { "default": "Alt+R" },
       "description": "Dachi : raccourci 3 (par défaut Résumer) sur le texte sélectionné"
     },
     "insert-result": {
-      "suggested_key": { "default": "Alt+Shift+V" },
+      "suggested_key": { "default": "Alt+V" },
       "description": "Dachi : remplacer la sélection par le résultat (dès qu'il est prêt)"
     }
   },

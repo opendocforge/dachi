@@ -1,6 +1,6 @@
 {
   "name": "dachi",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "description": "Extension Chrome de productivité rédactionnelle pour professionnels de santé",
   "type": "module",

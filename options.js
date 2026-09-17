@@ -107,7 +107,7 @@ const streamEnabledCheckbox = $("stream-enabled");
 const maxTokensSelect = $("max-tokens");
 const reasoningEffortSelect = $("reasoning-effort");
 const fewShotLimitSelect = $("few-shot-limit");
-const quickActionSelect = $("quick-action");
+const shortcutSelects = [$("shortcut-1"), $("shortcut-2"), $("shortcut-3")];
 const doctorContextTextarea = $("doctor-context");
 
 const anonymizeCheckbox = $("anonymize-enabled");
@@ -201,7 +201,9 @@ function readForm() {
     maxTokens: parseInt(maxTokensSelect.value, 10) || DEFAULT_SETTINGS.maxTokens,
     reasoningEffort: reasoningEffortSelect.value || DEFAULT_SETTINGS.reasoningEffort,
     fewShotLimit: Number.isFinite(parseInt(fewShotLimitSelect.value, 10)) ? parseInt(fewShotLimitSelect.value, 10) : DEFAULT_SETTINGS.fewShotLimit,
-    quickActionId: quickActionSelect.value || DEFAULT_SETTINGS.quickActionId,
+    shortcut1: shortcutSelects[0].value || DEFAULT_SETTINGS.shortcut1,
+    shortcut2: shortcutSelects[1].value || DEFAULT_SETTINGS.shortcut2,
+    shortcut3: shortcutSelects[2].value || DEFAULT_SETTINGS.shortcut3,
     doctorContext: doctorContextTextarea.value.trim(),
     anonymizeEnabled: anonymizeCheckbox.checked,
     rehydrateEnabled: rehydrateCheckbox.checked,
@@ -235,7 +237,10 @@ function fillForm(s) {
   rehydrateCheckbox.checked = s.rehydrateEnabled;
   confirmBeforeSendCheckbox.checked = s.confirmBeforeSend;
   customAcronymsInput.value = s.customAcronyms || "";
-  quickActionSelect.value = s.quickActionId;
+  // Migration : l'ancienne « action rapide » devient le raccourci 1 si celui-ci n'a jamais été réglé
+  shortcutSelects[0].value = s.shortcut1 || s.quickActionId || DEFAULT_SETTINGS.shortcut1;
+  shortcutSelects[1].value = s.shortcut2 || DEFAULT_SETTINGS.shortcut2;
+  shortcutSelects[2].value = s.shortcut3 || DEFAULT_SETTINGS.shortcut3;
 
   updateProviderFields();
   localKeyGroup.classList.toggle("hidden", !s.localRequireKey);
@@ -545,15 +550,36 @@ function renderMenuItems() {
 }
 
 function renderQuickActionOptions(items) {
-  const current = quickActionSelect.value || DEFAULT_SETTINGS.quickActionId;
-  quickActionSelect.innerHTML = "";
-  for (const item of items) {
-    const opt = document.createElement("option");
-    opt.value = item.id;
-    opt.textContent = item.title + (item.enabled ? "" : " (désactivée)");
-    quickActionSelect.appendChild(opt);
+  shortcutSelects.forEach((sel, i) => {
+    const current = sel.value || DEFAULT_SETTINGS[`shortcut${i + 1}`];
+    sel.innerHTML = "";
+    for (const item of items) {
+      const opt = document.createElement("option");
+      opt.value = item.id;
+      opt.textContent = item.title + (item.enabled ? "" : " (désactivée)");
+      sel.appendChild(opt);
+    }
+    sel.value = items.some(x => x.id === current) ? current : (items[0] ? items[0].id : "");
+  });
+}
+
+/** Affiche les touches réellement assignées par Chrome (peuvent différer des suggestions). */
+async function renderShortcutKeys() {
+  if (!chrome.commands || !chrome.commands.getAll) return;
+  let commands = [];
+  try { commands = await chrome.commands.getAll(); } catch (_) { return; }
+  for (const kbd of document.querySelectorAll(".shortcut-key[data-command]")) {
+    const cmd = commands.find(c => c.name === kbd.dataset.command);
+    if (!cmd) continue;
+    if (cmd.shortcut) {
+      kbd.textContent = cmd.shortcut.replace(/Shift/g, "Maj").replace(/\+/g, "+");
+      kbd.classList.remove("unassigned");
+      kbd.title = "";
+    } else {
+      kbd.classList.add("unassigned");
+      kbd.title = "Non assigné dans Chrome — cliquez sur « Modifier les touches »";
+    }
   }
-  quickActionSelect.value = items.some(i => i.id === current) ? current : (items[0] ? items[0].id : "");
 }
 
 /** Persiste une action puis re-rend ; affiche l'erreur (quota…) le cas échéant. */
@@ -1184,7 +1210,8 @@ $("import-file").addEventListener("change", async (e) => {
 (async () => {
   const settings = await loadSettings();
   if (settings.cguAccepted !== CGU_VERSION) cguOverlay.classList.remove("hidden");
-  await loadMenuItems();          // remplit aussi le sélecteur d'action rapide
+  await loadMenuItems();          // remplit aussi les sélecteurs de raccourcis
   fillForm(settings);
   await restoreModelCaches();
+  await renderShortcutKeys();
 })();

@@ -644,12 +644,28 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   await startAction({ tabId: tab.id, menuId: String(info.menuItemId), fallbackText: info.selectionText });
 });
 
+const SHORTCUT_SLOTS = { "action-slot-1": "shortcut1", "action-slot-2": "shortcut2", "action-slot-3": "shortcut3" };
+
 chrome.commands.onCommand.addListener(async (command) => {
-  if (command !== "quick-action") return;
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab || tab.id == null) return;
+
+  if (command === "insert-result") {
+    // Remplacer la sélection par le résultat — s'il n'est pas encore arrivé,
+    // le content script l'insérera dès réception (enchaînement des deux touches).
+    try {
+      await ensureContentScript(tab.id);
+      safeSend(tab.id, { phase: "insert" });
+    } catch (_) { /* onglet inaccessible */ }
+    return;
+  }
+
+  const key = SHORTCUT_SLOTS[command];
+  if (!key) return;
   const settings = await loadSettings();
-  await startAction({ tabId: tab.id, menuId: settings.quickActionId || DEFAULT_SETTINGS.quickActionId, fallbackText: "" });
+  // Migration : l'ancien réglage « action rapide » alimente le premier emplacement
+  const menuId = settings[key] || (key === "shortcut1" ? settings.quickActionId : null) || DEFAULT_SETTINGS[key];
+  await startAction({ tabId: tab.id, menuId, fallbackText: "" });
 });
 
 chrome.action.onClicked.addListener(() => {

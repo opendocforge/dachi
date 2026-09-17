@@ -73,6 +73,7 @@
     let lastResult = null;       // dernier résultat affiché (pour « rouvrir »)
     let previousFocus = null;    // focus à restaurer à la fermeture
     let mode = null;             // form | loading | preview | stream | result | error
+    let insertWhenReady = false; // Alt+Maj+V pressé pendant la génération → insérer dès le résultat
     const lastAnswers = {};      // dernières réponses par action (pré-remplissage)
 
     function isEditableEl(el) {
@@ -198,7 +199,28 @@
 
     function handleModalKey(e) {
         if (e.key === 'Escape') { e.preventDefault(); closePreview(); return; }
-        if (e.key === 'Tab') trapFocus(e);
+        if (e.key === 'Tab') { trapFocus(e); return; }
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); requestInsert(); }
+    }
+
+    /**
+     * Demande d'insertion (raccourci Alt+Maj+V ou Ctrl+Entrée) : immédiate si
+     * un résultat est affiché, différée jusqu'à l'arrivée du résultat si une
+     * génération est en cours, sinon reprend le dernier résultat de la page.
+     */
+    function requestInsert() {
+        if (mode === 'result') { doInsert(); return; }
+        if (mode === 'loading' || mode === 'stream') {
+            insertWhenReady = true;
+            showToast('Le résultat sera inséré dès qu\'il sera prêt…');
+            return;
+        }
+        if (mode === 'preview' || mode === 'form') {
+            showToast('Validez d\'abord cette étape (Entrée), puis Alt+Maj+V.', true);
+            return;
+        }
+        if (lastResult) { showResult(lastResult); doInsert(); return; }
+        showToast('Aucun résultat à insérer — lancez d\'abord une action.', true);
     }
 
     // Échap / Tab quand le focus est resté sur la page (modale ouverte sans champ)
@@ -238,6 +260,7 @@
     function closePreview() {
         overlay.classList.remove('visible');
         mode = null;
+        insertWhenReady = false;
         if (previousFocus && document.contains(previousFocus)) {
             try { previousFocus.focus({ preventScroll: true }); } catch (_) {}
         }
@@ -518,6 +541,14 @@
         mode = 'result';
         lastResult = payload;
         currentRequest = payload.request || currentRequest;
+        if (insertWhenReady) {
+            insertWhenReady = false;
+            // Rendu minimal de la textarea pour réutiliser doInsert(), puis insertion
+            bodyEl.innerHTML = '';
+            bodyEl.appendChild(makeTextarea(payload.result));
+            doInsert();
+            return;
+        }
         titleEl.textContent = payload.title;
         bodyEl.innerHTML = '';
 
@@ -575,7 +606,7 @@
         setActions(
             regen,
             button('Copier', ICONS.copy, 'dc-btn-secondary', doCopy),
-            button('Remplacer la sélection', ICONS.insert, 'dc-btn-primary', doInsert)
+            Object.assign(button('Remplacer la sélection', ICONS.insert, 'dc-btn-primary', doInsert), { title: 'Ctrl+Entrée · Alt+Maj+V' })
         );
 
         openPreview();
@@ -584,6 +615,7 @@
 
     function showError(title, message) {
         mode = 'error';
+        insertWhenReady = false;
         titleEl.textContent = title;
         const raw = String(message || '');
         const key = raw.split(':')[0].trim();
@@ -764,6 +796,7 @@
             case 'result':  showResult(msg); break;
             case 'error':   showError(msg.title, msg.error); break;
             case 'reopen':  reopenLast(); break;
+            case 'insert':  requestInsert(); break;
             case 'toast':   showToast(msg.message, !!msg.isError); break;
         }
         sendResponse({ received: true });

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
@@ -188,4 +189,14 @@ test("correction : les raccourcis de notes ne deviennent pas des diagnostics (av
   assert.doesNotMatch(ex.output, /AVC|cérumen|psychiatrique/);
   const strict = MENU_ITEMS.find(m => m.id === "corriger_seul");
   assert.match(strict.prompt, /jamais AVC/);
+});
+
+test("raccourcis clavier : trois emplacements par défaut sur des actions existantes", () => {
+  const ids = new Set(MENU_ITEMS.map(m => m.id));
+  for (const k of ["shortcut1", "shortcut2", "shortcut3"]) assert.ok(ids.has(DEFAULT_SETTINGS[k]), `${k} → ${DEFAULT_SETTINGS[k]}`);
+  assert.deepEqual([DEFAULT_SETTINGS.shortcut1, DEFAULT_SETTINGS.shortcut2, DEFAULT_SETTINGS.shortcut3], ["corriger_reformuler", "corriger_seul", "resumer"]);
+  const manifest = JSON.parse(readFileSync(new URL("../manifest.json", import.meta.url), "utf8"));
+  const cmds = Object.keys(manifest.commands);
+  assert.deepEqual(cmds.sort(), ["action-slot-1", "action-slot-2", "action-slot-3", "insert-result"]);
+  assert.equal(cmds.filter(c => manifest.commands[c].suggested_key).length <= 4, true, "Chrome : 4 touches suggérées max");
 });
